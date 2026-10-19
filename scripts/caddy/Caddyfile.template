@@ -1,0 +1,17 @@
+# ../port.txt = canvas (10027)
+# ../external_port.txt = public HTTPS (10028)
+{
+    admin off
+    auto_https disable_redirects
+}
+:{EXTERNAL_PORT} {
+    tls ssl/fullchain.pem ssl/privkey.pem
+    reverse_proxy 127.0.0.1:{INTERNAL_PORT} {
+        header_up Host {http.request.host}
+        header_up X-Forwarded-Host {http.request.host}
+        header_up X-Forwarded-Port {http.request.port}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

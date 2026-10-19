@@ -1,0 +1,12 @@
+{
+
+  "disable_browser_channels": true,
+
+  "disable_doubao": true,
+
+  "product_label": "Canvas Server",
+
+  "skip_playwright_pack": true
+
+}
+

@@ -1,0 +1,1913 @@
+<!DOCTYPE html>
+<html lang="zh-CN" translate="no" data-app-page="canvas">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="google" content="notranslate" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="autocomplete" content="off" />
+  <title>无限画布 · QingZi</title>
+  <style>
+    html,body{background:var(--bg,#0a0a0a);margin:0;color:var(--text,#ececf0);}
+    html.is-canvas-booting .topbar,
+    html.is-canvas-booting .bottom-bar,
+    html.is-canvas-booting .log-fab,
+    html.is-canvas-booting .agent-fab,
+    html.is-canvas-booting .agent-panel,
+    html.is-canvas-booting #viewport {
+      opacity:0 !important;
+      visibility:hidden !important;
+      pointer-events:none !important;
+    }
+    html.is-canvas-booting #canvas-enter-loader {
+      display:flex !important;
+      visibility:visible !important;
+      opacity:1 !important;
+      position:fixed;
+      inset:0;
+      align-items:center;
+      justify-content:center;
+      z-index:10055;
+    }
+  </style>
+    <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem("qingzi_canvas_prefs") || localStorage.getItem("doubao_canvas_prefs") || "{}";
+        if (localStorage.getItem("doubao_canvas_prefs") && !localStorage.getItem("qingzi_canvas_prefs")) {
+          localStorage.setItem("qingzi_canvas_prefs", raw);
+          localStorage.removeItem("doubao_canvas_prefs");
+        }
+        var d = JSON.parse(raw);
+        var t = d.theme || "default";
+        if (t && t !== "default") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+<link rel="icon" href="/favicon.ico?v=b205" type="image/svg+xml" />
+<link rel="stylesheet" href="/static/css/style.css?v=b214" />
+  <link rel="stylesheet" href="/static/css/theme-adapt.css?v=b214" />
+<script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var h = location.hash || "";
+      var m;
+      if ((m = h.match(/^#\/share\/([^/?#]+)/))) {
+        location.replace("/canvas?share=" + encodeURIComponent(decodeURIComponent(m[1])));
+        return;
+      }
+      if ((m = h.match(/^#\/b\/([^/?#]+)/))) {
+        location.replace("/canvas?id=" + encodeURIComponent(decodeURIComponent(m[1])));
+        return;
+      }
+      document.documentElement.classList.add("is-canvas-booting");
+      window.__workspaceBootAt = Date.now();
+    })();
+  </script>
+<script>
+    /* Early block browser page-zoom before app JS loads (Ctrl/Cmd+wheel / ± / Safari pinch). */
+    (function () {
+      function blockZoomKey(e) {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        var k = e.key;
+        var c = e.code;
+        if (
+          k === "+" || k === "=" || k === "-" || k === "_" || k === "0" ||
+          c === "Equal" || c === "Minus" || c === "Digit0" ||
+          c === "NumpadAdd" || c === "NumpadSubtract" || c === "Numpad0"
+        ) {
+          e.preventDefault();
+        }
+      }
+      function blockZoomWheel(e) {
+        if (e.ctrlKey || e.metaKey) e.preventDefault();
+      }
+      function blockGesture(e) {
+        e.preventDefault();
+      }
+      window.addEventListener("keydown", blockZoomKey, true);
+      window.addEventListener("wheel", blockZoomWheel, { capture: true, passive: false });
+      document.addEventListener("gesturestart", blockGesture, { capture: true, passive: false });
+      document.addEventListener("gesturechange", blockGesture, { capture: true, passive: false });
+      document.addEventListener("gestureend", blockGesture, { capture: true, passive: false });
+    })();
+  </script>
+</head>
+<body>
+  <div class="app" id="app-root">
+<div class="workspace-user-pop overlay-popover hidden" id="workspace-user-pop" role="menu">
+      <button type="button" class="workspace-user-menu-item js-open-gen-records" id="btn-workspace-gen-records" role="menuitem">线程记录</button>
+      <button type="button" class="workspace-user-menu-item" id="btn-workspace-prefix-manager" role="menuitem">前缀管理</button>
+      <button type="button" class="workspace-user-menu-item" id="btn-workspace-myapi" role="menuitem">MyApi 配置</button>
+      <button type="button" class="workspace-user-menu-item workspace-user-menu-toggle is-on" id="btn-workspace-conn-flow" role="menuitemcheckbox" aria-checked="true" title="生成中时，输入连线显示传输动画">
+        <span class="workspace-menu-toggle-label">连线传输动画</span>
+        <span class="workspace-menu-switch" aria-hidden="true"><span class="workspace-menu-switch-knob"></span></span>
+        <span class="workspace-menu-switch-state">开</span>
+      </button>
+      <div class="workspace-theme-block" aria-label="界面主题">
+        <div class="workspace-theme-label">界面主题</div>
+        <div class="workspace-theme-swatches" id="workspace-theme-swatches" role="radiogroup">
+          <button type="button" class="theme-swatch is-active" data-app-theme="default" title="默认" aria-label="默认主题" aria-checked="true" role="radio"></button>
+          <button type="button" class="theme-swatch" data-app-theme="black" title="黑色" aria-label="黑色主题" aria-checked="false" role="radio"></button>
+          <button type="button" class="theme-swatch" data-app-theme="white" title="白色" aria-label="白色主题" aria-checked="false" role="radio"></button>
+          <button type="button" class="theme-swatch" data-app-theme="pink" title="粉色" aria-label="粉色主题" aria-checked="false" role="radio"></button>
+          <button type="button" class="theme-swatch" data-app-theme="custom" title="自定义" aria-label="自定义主题" aria-checked="false" role="radio"></button>
+        </div>
+      </div>
+    </div>
+
+    <header class="topbar" id="chrome-top">
+      <div class="topbar-left">
+        <div class="topbar-cluster" id="topbar-cluster">
+          <div class="top-avatar-wrap">
+            <button type="button" class="top-avatar-btn" id="btn-top-avatar" title="画板菜单" aria-expanded="false">
+              <span class="top-avatar-face" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="3.2" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 19c1.2-3 3.5-4.5 6.5-4.5s5.3 1.5 6.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </span>
+              <svg class="top-caret" width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" fill="none" stroke-linecap="round"/></svg>
+            </button>
+            <div class="board-more-menu overlay-popover hidden" id="board-more-menu" role="menu">
+              <button type="button" class="board-menu-item" data-action="workspace">返回主页</button>
+              <button type="button" class="board-menu-item" data-action="rename">重命名</button>
+              <button type="button" class="board-menu-item" data-action="share">导出画板</button>
+              <button type="button" class="board-menu-item danger" data-action="delete">删除</button>
+            </div>
+          </div>
+          <div class="board-switcher-wrap">
+            <button class="board-switcher" id="btn-board-switcher" type="button" title="切换画板" aria-expanded="false">
+              <span id="board-name">画板</span>
+              <svg class="board-switcher-caret" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" fill="none" stroke-linecap="round"/></svg>
+            </button>
+            <div class="board-dropdown overlay-popover hidden" id="board-dropdown" role="dialog" aria-label="画板列表"></div>
+          </div>
+          <button type="button" class="top-status-check" title="已同步" aria-label="已同步">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M8.2 12.2l2.4 2.4 5.2-5.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button type="button" class="thread-badge js-open-gen-records" id="thread-badge" title="线程记录 · 点击查看并设置并发生成上限">线程 0/16</button>
+        <div class="workspace-user-wrap hidden" id="canvas-user-wrap">
+          <button type="button" class="user-avatar-btn" id="btn-canvas-user" title="设置" aria-expanded="false" aria-haspopup="menu">
+            <span class="user-avatar-letter" id="canvas-user-avatar">—</span>
+            <img class="user-avatar-img hidden" id="canvas-user-avatar-img" alt="" />
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="viewport" id="viewport">
+      <div class="canvas-world" id="canvas-world">
+        <svg class="connections" id="connections-layer"></svg>
+        <svg class="align-guides" id="align-guides-layer" aria-hidden="true"></svg>
+        <div class="nodes-layer" id="nodes-layer"></div>
+      </div>
+
+      <div class="canvas-hint hidden" id="canvas-hint">
+        <p>点击底部 <strong>+</strong> 或右键画布，添加「视频生成」节点</p>
+        <p class="hint-sub">可直接粘贴或拖入图片/视频/文本（.txt），作为引用节点使用</p>
+      </div>
+
+      <div class="drop-overlay hidden" id="drop-overlay">
+        <div class="drop-overlay-inner">
+          <span class="drop-overlay-icon">📎</span>
+          <p>松开鼠标，添加图片/视频/文本引用</p>
+        </div>
+      </div>
+
+      <input type="file" id="asset-file-input" accept="image/*,video/*,audio/*,.avi,.mkv,.wmv,.mpeg,.mpg,.3gp,.ts,.m2ts,.mts,.ogv,.mxf,.f4v,.flv,.txt,.md,.json,.csv,.prompt,text/plain,application/json" multiple hidden />
+
+      <div class="ctx-menu ctx-menu-canvas hidden" id="ctx-menu-canvas">
+        <button type="button" class="ctx-item" data-action="add-node">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-linecap="round"/></svg></span><span>添加节点</span></span>
+          <kbd class="ctx-kbd" data-kbd="tab">Tab</kbd>
+        </button>
+        <button type="button" class="ctx-item" data-action="add-asset">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 013.5 3h9A1.5 1.5 0 0114 4.5v7a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-7z" stroke="currentColor"/><path d="M5.5 7.5l2 2 3-3.5 2.5 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>添加资产</span></span>
+        </button>
+        <div class="ctx-divider"></div>
+        <button type="button" class="ctx-item" data-action="paste">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="7" height="9" rx="1" stroke="currentColor"/><path d="M3 5.5v7a1.5 1.5 0 001.5 1.5H10" stroke="currentColor"/></svg></span><span>粘贴</span></span>
+          <kbd class="ctx-kbd" data-kbd="mod-v">?/ctrl + V</kbd>
+        </button>
+        <div class="ctx-divider"></div>
+        <button type="button" class="ctx-item" data-action="undo">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3.5 5.5H10a3.5 3.5 0 010 7H8" stroke="currentColor" stroke-linecap="round"/><path d="M5.5 3L3.5 5.5 5.5 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>撤销</span></span>
+          <kbd class="ctx-kbd" data-kbd="mod-z">?/ctrl + Z</kbd>
+        </button>
+        <button type="button" class="ctx-item" data-action="redo">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12.5 5.5H6a3.5 3.5 0 000 7H8" stroke="currentColor" stroke-linecap="round"/><path d="M10.5 3l2 2-2 2.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>重做</span></span>
+          <kbd class="ctx-kbd" data-kbd="mod-shift-z">?/ctrl + ?Z</kbd>
+        </button>
+        <div class="ctx-divider"></div>
+        <button type="button" class="ctx-item" data-action="refresh">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12.5 4.5A5 5 0 114 10.5" stroke="currentColor" stroke-linecap="round"/><path d="M4 3v3h3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>刷新画布</span></span>
+        </button>
+      </div>
+
+      <div class="ctx-menu ctx-menu-node hidden" id="ctx-menu-node">
+        <button type="button" class="ctx-item" data-action="rename">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 12.5h10M9.5 3.5l3 3L6 13H3v-3l6.5-6.5z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>修改节点名称</span></span>
+          <kbd class="ctx-kbd">F2</kbd>
+        </button>
+        <div class="ctx-divider"></div>
+        <button type="button" class="ctx-item" data-action="copy-image">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor"/><circle cx="5.5" cy="6.5" r="1.2" fill="currentColor"/><path d="M3 12l3.5-3 2.5 2 2-1.5L13 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>复制图片</span></span>
+        </button>
+        <button type="button" class="ctx-item" data-action="copy">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="8" height="8" rx="1" stroke="currentColor"/><rect x="3" y="3" width="8" height="8" rx="1" stroke="currentColor"/></svg></span><span>复制节点</span></span>
+          <kbd class="ctx-kbd" data-kbd="mod-c">? C</kbd>
+        </button>
+        <button type="button" class="ctx-item" data-action="cut">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4.5" cy="4.5" r="2" stroke="currentColor"/><circle cx="11.5" cy="11.5" r="2" stroke="currentColor"/><path d="M11.5 4.5L4.5 11.5" stroke="currentColor" stroke-linecap="round"/></svg></span><span>剪切节点</span></span>
+          <kbd class="ctx-kbd" data-kbd="mod-x">? X</kbd>
+        </button>
+        <button type="button" class="ctx-item" data-action="duplicate">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="8" height="8" rx="1" stroke="currentColor"/><rect x="6" y="2" width="8" height="8" rx="1" stroke="currentColor"/><circle cx="10" cy="4" r="1" fill="currentColor"/></svg></span><span>创建副本</span></span>
+          <kbd class="ctx-kbd" data-kbd="mod-d">? D</kbd>
+        </button>
+        <button type="button" class="ctx-item" data-action="download">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v7M5.5 7 8 9.5 10.5 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 12.5h9" stroke="currentColor" stroke-linecap="round"/></svg></span><span data-ctx-label="download">下载</span></span>
+        </button>
+<div class="ctx-divider"></div>
+        <button type="button" class="ctx-item" data-action="set-cover">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor"/><path d="M2 6h12" stroke="currentColor"/></svg></span><span>设为画布封面</span></span>
+        </button>
+        <div class="ctx-divider"></div>
+        <button type="button" class="ctx-item" data-action="paste">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="7" height="9" rx="1" stroke="currentColor"/><path d="M3 5.5v7a1.5 1.5 0 001.5 1.5H10" stroke="currentColor"/></svg></span><span>粘贴</span></span>
+          <kbd class="ctx-kbd" data-kbd="mod-v">? V</kbd>
+        </button>
+        <button type="button" class="ctx-item ctx-item-danger" data-action="delete">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3.5 4.5h9M6 4.5V3.5h4v1M5 4.5v8h6v-8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span data-ctx-label="delete">删除</span></span>
+          <kbd class="ctx-kbd">?</kbd>
+        </button>
+        <div class="ctx-divider"></div>
+        <button type="button" class="ctx-item" data-action="refresh">
+          <span class="ctx-item-main"><span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12.5 4.5A5 5 0 114 10.5" stroke="currentColor" stroke-linecap="round"/><path d="M4 3v3h3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>刷新画布</span></span>
+        </button>
+      </div>
+
+      <div class="add-menu hidden" id="add-menu">
+        <div class="add-menu-title">添加节点</div>
+        <button type="button" class="ctx-item" data-type="text">
+          <span class="ctx-item-main">
+            <span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 3.5h8v9H4v-9z" stroke="currentColor"/><path d="M6.5 6.5h3M6.5 9h5" stroke="currentColor" stroke-linecap="round"/></svg></span>
+            <span>文本</span>
+          </span>
+        </button>
+        <button type="button" class="ctx-item" data-type="image">
+          <span class="ctx-item-main">
+            <span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="9" rx="1.2" stroke="currentColor"/><circle cx="5.5" cy="6.5" r="1" fill="currentColor"/><path d="M3.5 11l3-2.5 2 1.5 2.5-2 2 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span>图片生成</span>
+          </span>
+        </button>
+        <button type="button" class="ctx-item" data-type="video">
+          <span class="ctx-item-main">
+            <span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="4.5" width="7.5" height="7" rx="1" stroke="currentColor"/><path d="M10 6.5l3.5-2v7l-3.5-2V6.5z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
+            <span>视频生成</span>
+          </span>
+        </button>
+        <button type="button" class="ctx-item" data-type="ref-audio">
+          <span class="ctx-item-main">
+            <span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4.5v7.5l5-2.5V7L6 4.5z" stroke="currentColor" stroke-linejoin="round"/><path d="M4 10.5a2 2 0 004 0" stroke="currentColor" stroke-linecap="round"/></svg></span>
+            <span>音频引用</span>
+          </span>
+        </button>
+        <button type="button" class="ctx-item" data-type="voice-text">
+          <span class="ctx-item-main">
+            <span class="ctx-icon ctx-svg"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.5 8.2v-1.2M4.3 10V5.5M6.1 11.2V4.2M7.9 9.4V6" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/><path d="M10 4.2h4.2M10 7h3.2M10 9.8h4.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>
+            <span>音色文本</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="mention-menu overlay-popover hidden" id="mention-menu">
+        <div class="mention-list" id="mention-list"></div>
+      </div>
+      <div class="mention-preview-panel overlay-popover hidden" id="mention-preview">
+        <div class="mention-preview-media" id="mention-preview-media"></div>
+        <div class="mention-preview-label" id="mention-preview-label"></div>
+      </div>
+      <div class="mention-chip-tooltip overlay-popover hidden notranslate" id="mention-chip-tooltip" translate="no">
+        <div class="mention-chip-tooltip-media" id="mention-chip-tooltip-media"></div>
+        <div class="mention-chip-tooltip-label" id="mention-chip-tooltip-label"></div>
+      </div>
+      <div class="connect-hint hidden" id="connect-hint">拖到目标节点（或 <strong>输入 +</strong> / <strong>输出 +</strong>）完成连线</div>
+      <div class="marquee-box hidden" id="marquee-box"></div>
+    </main>
+
+    <!-- Outside viewport so position:fixed is screen-centered -->
+    <div class="canvas-toast hidden" id="canvas-toast" role="status" aria-live="polite">
+      <span class="canvas-toast-icon" id="canvas-toast-icon" aria-hidden="true"></span>
+      <span class="canvas-toast-msg" id="canvas-toast-msg"></span>
+      <span class="canvas-toast-chip hidden" id="canvas-toast-chip"></span>
+      <button type="button" class="canvas-toast-close hidden" id="canvas-toast-close" title="关闭" aria-label="关闭">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 3l6 6M9 3L3 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </button>
+      <span class="canvas-toast-bar" id="canvas-toast-bar" aria-hidden="true"></span>
+    </div>
+
+    <div id="zoom-hud" class="zoom-hud hidden" aria-hidden="true">100%</div>
+
+    <!-- Outside viewport so position:fixed is screen-centered (viewport has transforms) -->
+    <div class="multi-select-bar hidden" id="multi-select-bar" role="toolbar" aria-label="多选操作">
+      <span class="msb-count" id="msb-count">0 个节点</span>
+      <div class="msb-layout-wrap">
+        <button type="button" class="msb-btn" id="msb-layout" aria-expanded="false" aria-haspopup="true" title="整理布局">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 3.5h4v4h-4zM9.5 3.5h4v4h-4zM2.5 9.5h4v4h-4zM9.5 9.5h4v4h-4z" stroke="currentColor" stroke-width="1.2"/></svg>
+          <span>整理布局</span>
+          <svg class="msb-caret" width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-linecap="round"/></svg>
+        </button>
+        <div class="msb-layout-menu hidden" id="msb-layout-menu" role="menu">
+          <div class="msb-layout-modes">
+            <button type="button" class="msb-layout-mode" data-layout="by-links" role="menuitem">
+              <span class="msb-mode-ico" aria-hidden="true">⟷</span>
+              <span>顺着连线</span>
+            </button>
+            <button type="button" class="msb-layout-mode" data-layout="auto-grid" role="menuitem">
+              <span class="msb-mode-ico" aria-hidden="true">▦</span>
+              <span>自动网格</span>
+            </button>
+          </div>
+          <div class="msb-layout-presets" aria-label="指定排法">
+            <button type="button" class="msb-preset" data-layout="col" title="竖排 1×N">1 × N</button>
+            <button type="button" class="msb-preset" data-layout="grid-2" title="2 列网格">2 × N</button>
+            <button type="button" class="msb-preset" data-layout="row" title="横排 N×1">N × 1</button>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="msb-icon-btn" id="msb-download" title="下载选中">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.5v8m0 0L5.5 7.5M8 10.5l2.5-3M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" class="msb-icon-btn msb-danger" id="msb-delete" title="删除选中">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 4.5h9M6 4.5V3.2h4v1.3M5.2 4.5l.5 8.3h4.6l.5-8.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <footer class="bottom-bar bottom-chrome" id="chrome-bottom">
+      <div class="bottom-chrome-left">
+        <div class="zoom-controls-wrap chrome-pill">
+          <div class="canvas-minimap" id="canvas-minimap" aria-hidden="true">
+            <canvas id="canvas-minimap-canvas" width="220" height="132"></canvas>
+          </div>
+          <div class="nav-panel overlay-popover hidden" id="nav-panel">
+            <div class="nav-panel-head">
+              <input type="range" id="nav-zoom-slider" min="30" max="400" step="1" value="100" />
+              <span id="nav-zoom-value">100%</span>
+            </div>
+            <button type="button" class="nav-item" data-zoom-preset="0.3">缩放至 30%</button>
+            <button type="button" class="nav-item" data-zoom-preset="0.5">缩放至 50%</button>
+            <button type="button" class="nav-item" data-zoom-preset="1">缩放至 100%</button>
+            <button type="button" class="nav-item" data-zoom-preset="2">缩放至 200%</button>
+            <button type="button" class="nav-item" data-zoom-preset="3">缩放至 300%</button>
+            <button type="button" class="nav-item" id="nav-fit-screen">适合屏幕 <kbd class="nav-kbd">?0</kbd></button>
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">快捷键</div>
+            <div class="nav-shortcuts" id="nav-shortcuts"></div>
+            <div class="nav-slider-row">
+              <span>快捷键灵敏度</span>
+              <span id="nav-sens-val">125%</span>
+              <input type="range" id="nav-sensitivity" min="50" max="200" step="5" value="125" />
+            </div>
+            <div class="nav-slider-row">
+              <span>加速 Shift</span>
+              <span id="nav-shift-val">x2.5</span>
+              <input type="range" id="nav-shift-mult" min="1.5" max="4" step="0.1" value="2.5" />
+            </div>
+            <p class="nav-hint">点击快捷键可修改</p>
+          </div>
+          <div class="zoom-controls">
+            <button type="button" class="chrome-icon-btn" id="btn-grid-toggle" title="显示/隐藏网格" aria-pressed="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 2.5h4v4h-4v-4zm7 0h4v4h-4v-4zm-7 7h4v4h-4v-4zm7 0h4v4h-4v-4z" stroke="currentColor"/></svg>
+            </button>
+            <button type="button" class="chrome-icon-btn" id="btn-minimap-toggle" title="小地图" aria-pressed="false">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9" rx="1.2" stroke="currentColor"/><rect x="5" y="6" width="4.5" height="3" stroke="currentColor"/></svg>
+            </button>
+            <button type="button" class="zoom-label-btn" id="btn-zoom-panel">100%</button>
+          </div>
+        </div>
+        <button type="button" class="chrome-orb" id="btn-zoom-out" title="缩小" aria-label="缩小"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        <button type="button" class="chrome-orb" id="btn-zoom-in" title="放大" aria-label="放大">+</button>
+        <button type="button" class="chrome-orb" id="btn-zoom-fit" title="适合屏幕" aria-label="适合屏幕">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6.5V3.5h3M13 6.5V3.5h-3M3 9.5v3h3M13 9.5v3h-3" stroke="currentColor" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="bottom-chrome-center">
+        <div class="chrome-dock-hotzone" id="chrome-dock-hotzone" aria-hidden="true"></div>
+        <div class="tool-dock-wrap">
+          <div class="canvas-offview-bar hidden" id="canvas-offview-bar" role="status">
+            <span class="canvas-offview-msg">当前视图没有节点</span>
+            <button type="button" class="canvas-offview-action" id="btn-canvas-offview-go">返回节点</button>
+            <button type="button" class="canvas-offview-close" id="btn-canvas-offview-close" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+          </div>
+          <div class="tool-dock chrome-pill" id="tool-dock" role="toolbar" aria-label="画布工具">
+            <button class="tool-btn tool-btn-primary" id="btn-add-node" title="添加节点" aria-label="添加节点">+</button>
+            <button class="tool-btn" id="btn-dock-assets" title="素材库" aria-label="素材库"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 5.2V12a1.2 1.2 0 0 0 1.2 1.2h8.6A1.2 1.2 0 0 0 13.5 12V5.8a1 1 0 0 0-1-1H8.2L6.7 3.3H3.5a1 1 0 0 0-1 1.9z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/></svg></button>
+            <button class="tool-btn" id="btn-dock-history" title="生成历史" aria-label="生成历史" aria-controls="board-history-drawer" aria-expanded="false"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.35"/><path d="M8 5.2V8.2l2.1 1.3" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="tool-btn" id="btn-dock-locate" title="节点定位" aria-label="节点定位"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.35"/><path d="M8 2.4v2.2M8 11.4v2.2M2.4 8h2.2M11.4 8h2.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></button>
+            <button class="tool-btn" id="btn-dock-canvas-settings" title="画布设置" aria-label="画布设置" aria-controls="dock-canvas-settings" aria-expanded="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+            <button class="tool-btn" id="btn-dock-pin" title="固定工具栏" aria-label="固定工具栏" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.2 2.8l6 3.2-1.4 1.4 1.8 4.2-1.2 1.2-4.2-1.8-1.4 1.4-3.2-6 3.6-3.6z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg></button>
+            <button class="tool-btn hidden" id="btn-settings" title="账号设置" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </div>
+          <div class="dock-canvas-settings overlay-popover hidden" id="dock-canvas-settings" role="dialog" aria-labelledby="dock-canvas-settings-title" aria-hidden="true">
+            <div class="dock-settings-head">
+              <strong id="dock-canvas-settings-title">画布设置</strong>
+              <button type="button" class="icon-btn" id="dock-canvas-settings-close" title="关闭" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+            </div>
+            <label class="dock-settings-row">
+              <span class="dock-settings-copy">
+                <strong>拖拽对齐吸附</strong>
+                <em>移动节点靠近其他节点边缘时自动对齐，并显示辅助线</em>
+              </span>
+              <input type="checkbox" id="dock-pref-snap-align" />
+            </label>
+            <label class="dock-settings-row">
+              <span class="dock-settings-copy">
+                <strong>显示网格</strong>
+                <em>画布底纹圆点网格</em>
+              </span>
+              <input type="checkbox" id="dock-pref-show-grid" />
+            </label>
+            <label class="dock-settings-row">
+              <span class="dock-settings-copy">
+                <strong>小地图</strong>
+                <em>左下角缩略导航</em>
+              </span>
+              <input type="checkbox" id="dock-pref-show-minimap" />
+            </label>
+            <label class="dock-settings-row">
+              <span class="dock-settings-copy">
+                <strong>连线流动动画</strong>
+                <em>连接线上的光流动效</em>
+              </span>
+              <input type="checkbox" id="dock-pref-conn-flow" />
+            </label>
+            <label class="dock-settings-row">
+              <span class="dock-settings-copy">
+                <strong>固定底部工具栏</strong>
+                <em>关闭后，鼠标离开底部会自动收起</em>
+              </span>
+              <input type="checkbox" id="dock-pref-dock-pinned" />
+            </label>
+          </div>
+        </div>
+        <button type="button" class="chrome-dock-peek" id="chrome-dock-peek" title="展开工具栏" aria-label="展开工具栏" hidden></button>
+      </div>
+
+      <div class="bottom-chrome-right">
+        <div class="bottom-chrome-side">
+          <div class="bottom-chrome-fabs">
+            <div class="log-fab" id="log-fab">
+              <button type="button" class="log-fab-btn" id="btn-logs" title="运行日志" aria-pressed="false">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                </svg>
+                <span>日志</span>
+              </button>
+              <div class="log-panel overlay-popover hidden" id="log-panel">
+                <div class="log-panel-head">
+                  <span>运行日志</span>
+                  <div class="log-panel-actions">
+                    <button type="button" class="log-clear" id="btn-log-clear">清空</button>
+                    <button type="button" class="log-clear" id="btn-log-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+                  </div>
+                </div>
+                <pre class="log-body" id="log-body">暂无日志</pre>
+              </div>
+            </div>
+            <div class="agent-fab" id="agent-fab">
+              <button type="button" class="agent-fab-btn" id="btn-agent-fab" title="小庆子智能体" aria-pressed="false" aria-label="打开小庆子">
+                <span class="agent-fab-face" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 64 64" fill="none">
+                    <ellipse cx="32" cy="36" rx="20" ry="18" fill="#F5F0E6"/>
+                    <circle cx="22" cy="22" r="8" fill="#EDE6DA"/>
+                    <circle cx="42" cy="22" r="8" fill="#EDE6DA"/>
+                    <circle cx="32" cy="18" r="9" fill="#F5F0E6"/>
+                    <circle cx="25" cy="34" r="2.2" fill="#2A2A32"/>
+                    <circle cx="39" cy="34" r="2.2" fill="#2A2A32"/>
+                    <ellipse cx="32" cy="41" rx="3.2" ry="2.2" fill="#C9A88A"/>
+                    <path d="M26 46c3 2.4 9 2.4 12 0" stroke="#2A2A32" stroke-width="1.6" stroke-linecap="round"/>
+                  </svg>
+                </span>
+                <span class="agent-fab-label">小庆子</span>
+              </button>
+            </div>
+          </div>
+          <div class="status-bar-wrap" id="status-bar-wrap">
+            <div class="node-list-panel overlay-popover hidden" id="node-list-panel" role="dialog" aria-labelledby="node-list-title" aria-hidden="true">
+              <div class="node-list-head">
+                <span id="node-list-title">节点</span>
+                <button type="button" class="node-list-close" id="node-list-close" title="关闭" aria-label="关闭">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+              <div class="node-list-body" id="node-list-body"></div>
+              <div class="node-list-pager" id="node-list-pager" hidden>
+                <button type="button" class="node-list-page-btn" data-page="first" title="首页" aria-label="首页">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.8 3.5L7.3 8l4.5 4.5M7.8 3.5L3.3 8l4.5 4.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <button type="button" class="node-list-page-btn" data-page="prev" title="上一页" aria-label="上一页">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <span class="node-list-page-label" id="node-list-page-label">1 / 1</span>
+                <button type="button" class="node-list-page-btn" data-page="next" title="下一页" aria-label="下一页">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <button type="button" class="node-list-page-btn" data-page="last" title="末页" aria-label="末页">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.2 3.5L8.7 8l-4.5 4.5M8.2 3.5L12.7 8l-4.5 4.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <div class="node-list-foot">
+                <label class="node-list-search">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.3"/><path d="M10.4 10.4L13.5 13.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  <input type="search" id="node-list-search" placeholder="按名称查找" autocomplete="off" spellcheck="false" />
+                </label>
+                <div class="node-list-filters" id="node-list-filters" role="tablist" aria-label="节点类型筛选"></div>
+              </div>
+            </div>
+            <div class="status-bar-row">
+              <div class="status-conn chrome-pill" id="canvas-conn-stat" title="连线数量" aria-label="连线数量">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8h6.2M9.7 5.2L12.5 8l-2.8 2.8" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><circle cx="3.5" cy="8" r="1.35" fill="currentColor"/></svg>
+                <span id="conn-count-num">0</span>
+              </div>
+              <div class="status-kbd chrome-pill" id="canvas-kbd-bar" title="画布快捷键" aria-hidden="true">
+                <span class="kbd-hint" id="canvas-kbd-hint">WASD 平移 · Q/E 缩放 · Ctrl+滚轮缩放</span>
+              </div>
+              <button type="button" class="status-nodes-btn chrome-pill" id="canvas-status-bar" title="节点" aria-label="节点" aria-expanded="false" aria-controls="node-list-panel">
+                <svg class="status-nodes-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="2.4" y="2.4" width="4.4" height="4.4" rx="0.9" stroke="currentColor" stroke-width="1.25"/>
+                  <rect x="9.2" y="2.4" width="4.4" height="4.4" rx="0.9" stroke="currentColor" stroke-width="1.25"/>
+                  <rect x="2.4" y="9.2" width="4.4" height="4.4" rx="0.9" stroke="currentColor" stroke-width="1.25"/>
+                  <rect x="9.2" y="9.2" width="4.4" height="4.4" rx="0.9" stroke="currentColor" stroke-width="1.25"/>
+                </svg>
+                <span id="node-count-num">0</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+
+<dialog id="modal-settings" class="settings-dialog">
+    <div class="settings-window">
+      <div class="settings-window-head">
+        <div>
+          <h3>设置</h3>
+          <p class="settings-window-sub">MyApi · 并发</p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-close-settings" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+
+      <div class="settings-window-body">
+        <section class="settings-section">
+          <div class="settings-section-title">并发生成</div>
+          <div class="thread-settings">
+            <div class="thread-settings-row">
+              <div class="thread-settings-copy">
+                <span class="thread-settings-title">每使用人并发</span>
+                <span class="thread-settings-hint" id="thread-recommend-hint">单个使用人最多同时占用几个 MyApi 并发</span>
+              </div>
+              <div class="thread-stepper">
+                <button type="button" class="icon-btn" id="btn-thread-minus" title="减少"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+                <span id="thread-value">2</span>
+                <button type="button" class="icon-btn" id="btn-thread-plus" title="增加">+</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-thread-recommend">使用推荐线程数</button>
+          </div>
+        </section>
+
+        <section class="settings-section settings-myapi-wrap">
+          <div class="settings-section-head">
+            <div class="settings-section-title">MyApi 自定义渠道</div>
+          </div>
+          <p class="settings-section-hint">自定义 API 中转 · 视频走创建 + 轮询</p>
+
+          <div class="myapi-panel">
+            <div class="myapi-panel-head">
+              <div class="myapi-seg" role="tablist">
+                <button type="button" class="myapi-tab active" data-myapi-kind="image">图片</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="video">视频</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="text">文本</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="voice">语音</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="vision">视觉</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="agent">智能体</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="volcengine" id="myapi-tab-volcengine">火山引擎</button>
+              </div>
+            </div>
+
+            <div class="myapi-list" id="myapi-model-list"></div>
+            <div class="volcengine-panel hidden" id="volcengine-panel">
+              <div class="volcengine-key-row">
+                <label class="volcengine-key-field">
+                  <span class="volcengine-key-label-row">
+                    <span class="bendi-label">方舟 API Key</span>
+                    <span class="volcengine-key-status" id="volcengine-key-status" hidden></span>
+                  </span>
+                  <input type="password" id="volcengine-api-key" class="browser-path-input" placeholder="图/视/文 · ark 控制台 Key（留空保留）" spellcheck="false" autocomplete="new-password" />
+                </label>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-volcengine-save">保存</button>
+              </div>
+              <div class="volcengine-key-row" style="margin-top:8px">
+                <label class="volcengine-key-field">
+                  <span class="volcengine-key-label-row">
+                    <span class="bendi-label">语音 Key（openspeech）</span>
+                    <span class="volcengine-key-status" id="volcengine-speech-key-status" hidden></span>
+                  </span>
+                  <input type="password" id="volcengine-speech-api-key" class="browser-path-input" placeholder="音频生成专用 · 语音控制台 Key（可与方舟不同，留空保留）" spellcheck="false" autocomplete="new-password" />
+                </label>
+              </div>
+              <p class="settings-section-hint" style="margin:10px 0 8px">模型已内置。「文本」开关同时给文本节点与<strong>音色描述</strong>（只出文字）；「语音」开关给<strong>音频生成</strong>（音色生成 / 音乐 / 录音）。「设为默认」后新建该类型节点优先走火山。</p>
+              <div class="volcengine-kind-list" id="volcengine-kind-list"></div>
+            </div>
+
+            <div class="myapi-panel-foot" id="myapi-panel-foot">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-myapi-add">添加模型</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-label="开源免责声明">
+          <div class="settings-section-title">开源免责声明</div>
+          <div class="open-source-disclaimer">
+            <p>下载、运行或再分发即表示同意。本项目只公开源码，供个人学习、研究和非商业分享，不是允许商用的许可证。</p>
+            <p>可以在自己的电脑上运行和修改，也可以把源码分享给他人，但必须附上本声明，且不得收费。禁止出售、收费部署、会员收费、广告变现，以及放进营利产品。</p>
+            <p>软件按现状提供。作者不保证稳定、安全、不丢数据，也不保证生成成功或某个模型可用。</p>
+            <p>作者不对画板丢失、服务中断、接口费用、密钥泄露，以及生成内容引起的投诉或索赔负责。</p>
+            <p>模型和密钥由使用者自己填写、保管。生成内容、上传素材和版权合规由使用者负责。本项目与模型厂商、中转站没有隶属关系。</p>
+            <p>Python 依赖需自行安装。视频超分引擎另行下载，并遵守其各自许可证。</p>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="modal-myapi-model" class="myapi-edit-dialog">
+    <form class="myapi-edit-card" id="form-myapi-model">
+      <div class="myapi-edit-head">
+        <div>
+          <h3 class="myapi-form-title" id="myapi-form-title">添加模型</h3>
+          <p class="myapi-edit-sub" id="myapi-form-kind-label">图片模型</p>
+        </div>
+        <button type="button" class="myapi-edit-close" id="btn-myapi-close" title="关闭" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="myapi-edit-body">
+        <input type="hidden" id="myapi-edit-id" value="" />
+        <input type="hidden" id="myapi-clone-from" value="" />
+        <div class="myapi-form-grid">
+          <label class="myapi-field">
+            <span>显示名称</span>
+            <input type="text" id="myapi-name" placeholder="例如 my-model" maxlength="80" required autocomplete="off" spellcheck="false" data-lpignore="true" />
+          </label>
+          <label class="myapi-field">
+            <span>模型 ID</span>
+            <input type="text" id="myapi-model-id" placeholder="同显示名称" maxlength="120" autocomplete="off" spellcheck="false" data-lpignore="true" />
+          </label>
+          <label class="myapi-field myapi-field-wide">
+            <span>Base URL</span>
+            <input type="text" id="myapi-base-url" placeholder="https://api.example.com/v1" required spellcheck="false" autocomplete="off" data-lpignore="true" />
+          </label>
+          <div class="myapi-field myapi-field-wide myapi-style-only hidden" id="myapi-api-style-wrap">
+            <div class="myapi-field-label-row">
+              <span>接口风格</span>
+              <button type="button" class="myapi-style-detail-btn" id="btn-myapi-style-detail" aria-expanded="false" aria-controls="myapi-api-style-detail">详情</button>
+            </div>
+            <select id="myapi-api-style" class="admin-select">
+              <option value="generic">默认</option>
+            </select>
+            <p class="myapi-field-hint" id="myapi-api-style-hint"></p>
+            <div class="myapi-style-detail-panel hidden" id="myapi-api-style-detail" hidden></div>
+          </div>
+          <label class="myapi-field myapi-field-wide">
+            <span>API Key</span>
+            <input type="text" id="myapi-api-key" class="api-key-input" name="myapi-api-key-token" placeholder="sk-…" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" />
+          </label>
+                    <div class="myapi-voice-panel myapi-voice-only hidden" id="myapi-voice-fields">
+            <div class="myapi-form-subtitle">语音参数（火山 / openspeech）</div>
+            <p class="myapi-field-hint">接口风格请选「火山引擎」。Base URL 默认 openspeech；图/视频/文本请用方舟 <code>https://ark.cn-beijing.volces.com</code>。</p>
+            <label class="myapi-field">
+              <span>音色 / Speaker</span>
+              <input type="text" id="myapi-voice-speaker" placeholder="可选，如 zh_female_… / 复刻音色 ID" maxlength="120" autocomplete="off" spellcheck="false" />
+            </label>
+            <label class="myapi-field">
+              <span>App ID</span>
+              <input type="text" id="myapi-voice-app-id" placeholder="可选，X-Api-App-Id" maxlength="80" autocomplete="off" spellcheck="false" />
+            </label>
+            <label class="myapi-field">
+              <span>输出格式</span>
+              <select id="myapi-voice-format" class="admin-select">
+                <option value="mp3">mp3</option>
+                <option value="wav">wav</option>
+                <option value="ogg_opus">ogg_opus</option>
+                <option value="pcm">pcm</option>
+              </select>
+            </label>
+          </div>
+<div class="myapi-agent-panel myapi-agent-only hidden" id="myapi-agent-fields">
+            <div class="myapi-form-subtitle">智能体能力</div>
+            <p class="myapi-field-hint">对话走通用 Chat Completions，无需选接口风格；语音分析用本地 Whisper，不必在此配置。</p>
+            <div class="agent-context-settings" id="agent-context-settings">
+              <div class="myapi-form-subtitle">上下文与记忆</div>
+              <p class="myapi-field-hint">仅影响发送给智能体的会话整理，不会删除画布内容或聊天记录。</p>
+              <div class="myapi-inline-row agent-context-row">
+                <label class="myapi-inline-field agent-context-field"><span>上下文详细度</span>
+                  <select id="agent-context-detail" class="admin-select">
+                    <option value="compact">紧凑：较少历史，响应更快</option>
+                    <option value="balanced">平衡</option>
+                    <option value="full">完整：保留更多最近对话</option>
+                  </select>
+                </label>
+                <label class="myapi-inline-field agent-context-field"><span>最近对话条数</span>
+                  <input type="number" class="myapi-num-input" id="agent-recent-messages" min="2" max="40" step="1" />
+                </label>
+              </div>
+              <div class="myapi-inline-row agent-context-row">
+                <label class="myapi-inline-field agent-context-field"><span>记忆摘要上限</span>
+                  <select id="agent-memory-size" class="admin-select">
+                    <option value="800">短（约 800 字符）</option>
+                    <option value="2400">中（约 2400 字符）</option>
+                    <option value="6000">长（约 6000 字符）</option>
+                  </select>
+                </label>
+                <label class="myapi-inline-field agent-context-field"><span>回复保留长度</span>
+                  <select id="agent-assistant-size" class="admin-select">
+                    <option value="600">精简</option>
+                    <option value="1200">标准</option>
+                    <option value="2400">详细</option>
+                  </select>
+                </label>
+              </div>
+              <div class="myapi-inline-row agent-context-row">
+                <label class="myapi-inline-field agent-context-field"><span>聊天窗口每页</span>
+                  <select id="agent-ui-page-size" class="admin-select">
+                    <option value="6">6 条</option><option value="10">10 条</option><option value="20">20 条</option>
+                  </select>
+                </label>
+                <label class="myapi-inline-field agent-context-field"><span>上滑加载</span>
+                  <select id="agent-ui-load-more" class="admin-select">
+                    <option value="6">6 条</option><option value="10">10 条</option><option value="20">20 条</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <label class="myapi-check myapi-check-block" id="myapi-multimodal-wrap">
+              <input type="checkbox" id="myapi-multimodal" />
+              <span class="myapi-check-text">
+                <strong>支持多模态理解</strong>
+                <em>主模型可直接看图，勾选后不必另配视觉模型</em>
+              </span>
+            </label>
+            <div class="myapi-agent-vision" id="myapi-vision-pick-wrap">
+              <span class="myapi-field-caption">视觉模型（可选）</span>
+              <div class="myapi-select-host">
+                <select id="myapi-vision-model-id" class="admin-select">
+                  <option value="">不使用 / 未添加视觉模型</option>
+                </select>
+              </div>
+              <p class="myapi-field-hint">未勾选多模态时，可指定一个已添加的视觉模型做看图辅助。</p>
+            </div>
+          </div>
+
+        </div>
+        <div class="myapi-advanced" id="myapi-advanced-fields">
+          <div class="myapi-form-subtitle">参考素材上限</div>
+          <div class="myapi-inline-row">
+            <label class="myapi-inline-field">
+              <span>图片</span>
+              <input type="number" class="myapi-num-input" id="myapi-max-images" min="0" max="50" value="9" />
+            </label>
+            <label class="myapi-inline-field">
+              <span>视频</span>
+              <input type="number" class="myapi-num-input" id="myapi-max-videos" min="0" max="50" value="3" />
+            </label>
+            <label class="myapi-inline-field">
+              <span>音频</span>
+              <input type="number" class="myapi-num-input" id="myapi-max-audios" min="0" max="50" value="3" />
+            </label>
+          </div>
+          <div class="myapi-video-only hidden" id="myapi-video-fields">
+            <div class="myapi-form-subtitle">视频时长（秒）</div>
+            <div class="myapi-inline-row">
+              <label class="myapi-inline-field">
+                <span>最短</span>
+                <input type="number" class="myapi-num-input" id="myapi-duration-min" min="1" max="600" value="4" />
+              </label>
+              <label class="myapi-inline-field">
+                <span>最长</span>
+                <input type="number" class="myapi-num-input" id="myapi-duration-max" min="1" max="600" value="10" />
+              </label>
+              <label class="myapi-check myapi-check-inline">
+                <input type="checkbox" id="myapi-send-duration" checked />
+                <span id="myapi-send-duration-label">API 携带 duration</span>
+              </label>
+            </div>
+            <div class="myapi-form-subtitle">支持比例</div>
+            <div class="myapi-check-grid" id="myapi-ratios-group"></div>
+            <div class="myapi-form-subtitle">支持分辨率</div>
+            <p class="muted" style="margin:0 0 6px;font-size:12px">「自由」= 不传分辨率参数，由上游默认生成</p>
+            <div class="myapi-check-grid" id="myapi-resolutions-group"></div>
+          </div>
+        </div>
+      </div>
+      <div class="myapi-form-actions myapi-edit-actions">
+        <div class="myapi-clip-actions">
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-myapi-copy-config" title="复制全部配置（不含 API Key）">一键复制</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-myapi-paste-config" title="从剪贴板粘贴配置">粘贴配置</button>
+        </div>
+        <span class="myapi-test-status" id="myapi-test-status" aria-live="polite"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-myapi-test">测试链接</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-myapi-cancel">取消</button>
+        <button type="submit" class="btn btn-primary btn-sm" id="btn-myapi-save">添加</button>
+      </div>
+    </form>
+  </dialog>
+<dialog id="modal-prefix-manager" class="settings-dialog prefix-manager-dialog">
+    <div class="settings-window">
+      <div class="settings-window-head">
+        <div>
+          <h3>前缀管理</h3>
+          <p class="settings-window-sub">生成时自动在提示词前添加前缀，格式：前缀 + 三个换行 + 内容</p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-close-prefix-manager" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="settings-window-body">
+        <section class="settings-section">
+          <div class="settings-section-title">默认前缀</div>
+          <div class="prefix-default-row">
+            <div class="prefix-default-field">
+              <span class="prefix-default-label">图片默认</span>
+              <div id="prefix-default-image" class="prefix-default-picker-host"></div>
+            </div>
+            <div class="prefix-default-field">
+              <span class="prefix-default-label">视频默认</span>
+              <div id="prefix-default-video" class="prefix-default-picker-host"></div>
+            </div>
+          </div>
+        </section>
+        <section class="settings-section">
+          <div class="prefix-manager-section-head">
+            <div class="settings-section-title">图片前缀</div>
+            <button type="button" class="btn btn-ghost prefix-manager-add-btn" id="btn-prefix-manager-add-image">+ 添加</button>
+          </div>
+          <div id="prefix-manager-list-image" class="prefix-manager-list" data-prefix-kind="image"></div>
+        </section>
+        <section class="settings-section">
+          <div class="prefix-manager-section-head">
+            <div class="settings-section-title">视频前缀</div>
+            <button type="button" class="btn btn-ghost prefix-manager-add-btn" id="btn-prefix-manager-add-video">+ 添加</button>
+          </div>
+          <div id="prefix-manager-list-video" class="prefix-manager-list" data-prefix-kind="video"></div>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="modal-prefix-edit" class="modal-dialog prefix-edit-dialog">
+    <form id="form-prefix-edit" class="prefix-edit-panel" autocomplete="off">
+      <h3 id="prefix-edit-title">添加前缀</h3>
+      <label class="field">
+        <span>名称</span>
+        <input type="text" id="input-prefix-edit-name" placeholder="如：人物" maxlength="32" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="field">
+        <span>前缀内容</span>
+        <textarea id="input-prefix-edit-content" class="prefix-edit-content" placeholder="生成时会加在提示词前面，格式：前缀 + 三个换行 + 内容" rows="22" spellcheck="false"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btn-prefix-edit-cancel">取消</button>
+        <button type="submit" class="btn btn-primary" id="btn-prefix-edit-save">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+<dialog id="modal-prefix-view" class="modal-dialog prefix-view-dialog">
+    <div class="prefix-view-panel">
+      <div class="prefix-view-head">
+        <h3 id="prefix-view-title">查看前缀</h3>
+        <button type="button" class="icon-btn" id="btn-prefix-view-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <pre id="prefix-view-content" class="prefix-view-content"></pre>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="btn-prefix-view-done">关闭</button>
+      </div>
+    </div>
+  </dialog>
+<dialog id="app-dialog" class="app-dialog" aria-labelledby="app-dialog-title">
+    <div class="app-dialog-card">
+      <h3 id="app-dialog-title" class="app-dialog-title">提示</h3>
+      <p id="app-dialog-message" class="app-dialog-message"></p>
+      <input
+        type="text"
+        id="app-dialog-input"
+        class="app-dialog-input hidden"
+        maxlength="64"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <div class="app-dialog-actions">
+        <button type="button" class="btn btn-ghost" id="app-dialog-cancel" data-app-dialog="cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="app-dialog-ok" data-app-dialog="ok">确定</button>
+      </div>
+    </div>
+  </dialog>
+<div id="canvas-enter-loader" class="canvas-enter-loader hidden" aria-live="polite" aria-busy="false">
+    <div class="canvas-enter-loader-dots" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+
+<dialog id="modal-delete-board" class="board-delete-dialog">
+    <div class="board-delete-card">
+      <button type="button" class="board-delete-close" id="btn-close-delete-board" title="关闭" aria-label="关闭">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="board-delete-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7h12Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 11v5M14 11v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3 class="board-delete-title">删除画布</h3>
+      <p class="board-delete-sub">此操作无法撤销</p>
+      <p id="delete-board-message" class="board-delete-message">确定要删除该画布吗？画板内所有素材将一并删除。</p>
+      <div class="board-delete-actions">
+        <button type="button" class="btn btn-ghost" id="btn-cancel-delete-board">取消</button>
+        <button type="button" class="btn board-delete-btn-danger" id="btn-confirm-delete-board">删除画布</button>
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="modal-rename-node" class="modal-dialog">
+    <form method="dialog" id="form-rename-node" autocomplete="off">
+      <h3>重命名节点</h3>
+      <label class="field">
+        <span>节点名称</span>
+        <input
+          type="text"
+          id="input-rename-node"
+          name="canvas-node-rename"
+          placeholder="图片生成1"
+          maxlength="32"
+          required
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-form-type="other"
+        />
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btn-cancel-rename">取消</button>
+        <button type="submit" class="btn btn-primary">确定</button>
+      </div>
+    </form>
+  </dialog>
+
+<dialog id="modal-rename-board" class="modal-dialog">
+    <form method="dialog" id="form-rename-board" autocomplete="off">
+      <h3>重命名画板</h3>
+      <label class="field">
+        <span>画板名称</span>
+        <input
+          type="text"
+          id="input-rename-board"
+          name="canvas-board-rename"
+          placeholder="画板 1"
+          maxlength="32"
+          required
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-form-type="other"
+        />
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btn-cancel-rename-board">取消</button>
+        <button type="submit" class="btn btn-primary">确定</button>
+      </div>
+    </form>
+  </dialog>
+
+<div id="image-lightbox" class="image-lightbox hidden" aria-hidden="true">
+    <div class="lightbox-backdrop" id="lb-backdrop"></div>
+    <div class="lightbox-toolbar">
+      <div class="lightbox-zoom">
+        <button type="button" class="lb-btn" id="lb-zoom-out" title="缩小"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        <button type="button" class="lb-btn" id="lb-zoom-in" title="放大">+</button>
+        <span id="lb-zoom-label">100%</span>
+        <input type="range" id="lb-zoom-slider" min="25" max="200" value="100" orient="horizontal" aria-orientation="horizontal" />
+      </div>
+      <div class="lightbox-actions">
+        <a class="lb-btn" id="lb-download" href="#" download title="下载">↓</a>
+        <button type="button" class="lb-btn" id="lb-close" title="关闭 (Esc)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+    </div>
+    <div class="lightbox-stage" id="lb-stage">
+      <div class="lb-image-stack" id="lb-image-stack">
+        <img id="lb-image" alt="" draggable="false" />
+        <img id="lb-ai-mark" class="ai-mark-overlay hidden" src="/static/assets/ai-mark-watermark.png" alt="" draggable="false" decoding="async" />
+      </div>
+    </div>
+    <div class="lightbox-footer">
+      <span id="lb-counter">图片节点 1 / 1</span>
+      <div class="lightbox-nav">
+        <button type="button" class="lb-btn" id="lb-prev" title="上一张"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="lb-btn" id="lb-next" title="下一张"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="lb-btn lb-locate" id="lb-locate" title="定位到节点">◎ 定位到节点</button>
+      </div>
+    </div>
+    <div class="lightbox-thumbs" id="lb-thumbs"></div>
+  </div>
+
+<div id="prompt-expand" class="prompt-expand hidden" aria-hidden="true">
+    <div class="prompt-expand-backdrop" id="prompt-expand-backdrop"></div>
+    <div class="prompt-expand-layout">
+      <div class="prompt-expand-box">
+        <div class="prompt-expand-header">
+          <span id="prompt-expand-title">编辑描述</span>
+          <div class="prompt-expand-header-actions">
+            <button type="button" class="lb-btn" id="prompt-expand-close" title="关闭 (Esc)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+          </div>
+        </div>
+        <div id="prompt-expand-refs" class="prompt-expand-refs" aria-label="已牵线引用"></div>
+        <div
+          id="prompt-expand-editor"
+          class="prompt-editor prompt-expand-editor"
+          contenteditable="true"
+          data-placeholder="请输入描述，输入 @ 引用已连线节点…"
+          spellcheck="false"
+        ></div>
+        <div class="prompt-expand-footer">
+          <span class="prompt-expand-hint">输入 <kbd>@</kbd> 引用已牵线节点；点 <strong>+</strong> 可不牵线选素材</span>
+          <button type="button" class="btn btn-primary" id="prompt-expand-save">完成</button>
+        </div>
+      </div>
+      <aside id="prompt-expand-qm" class="prompt-expand-qm-dock" aria-label="快速添加">
+        <div class="prompt-expand-qm-dock-head">
+          <span>快速添加</span>
+          <span id="prompt-expand-qm-prefix" class="prompt-expand-qm-prefix" hidden></span>
+        </div>
+        <div id="prompt-expand-qm-panel" class="prompt-expand-qm-panel"></div>
+        <div id="prompt-expand-qm-records" class="prompt-expand-qm-records panel-qm-records-host"></div>
+      </aside>
+    </div>
+  </div>
+
+<div id="asset-picker" class="asset-picker hidden" aria-hidden="true">
+    <div class="asset-picker-backdrop" id="asset-picker-backdrop"></div>
+    <div class="asset-picker-box" role="dialog" aria-labelledby="asset-picker-title">
+      <header class="asset-picker-head">
+        <h2 id="asset-picker-title">选择素材</h2>
+        <button type="button" class="lb-btn" id="asset-picker-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="asset-picker-toolbar">
+        <select id="asset-picker-board" class="asset-picker-board" title="画布"></select>
+        <div class="asset-picker-filters" id="asset-picker-filters">
+          <button type="button" class="asset-filter active" data-filter="all">全部</button>
+          <button type="button" class="asset-filter" data-filter="image">图片</button>
+          <button type="button" class="asset-filter" data-filter="video">视频</button>
+          <button type="button" class="asset-filter" data-filter="audio">音频</button>
+          <button type="button" class="asset-filter" data-filter="text">文本</button>
+        </div>
+      </div>
+      <div class="asset-picker-grid" id="asset-picker-grid"></div>
+      <footer class="asset-picker-foot">
+        <span class="asset-picker-hint" id="asset-picker-hint">牵线或已引用的素材显示为已选，不可重复添加</span>
+        <button type="button" class="btn btn-ghost" id="asset-picker-cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="asset-picker-add" disabled>添加</button>
+      </footer>
+    </div>
+  </div>
+
+<div id="board-history-drawer" class="board-history-drawer hidden" aria-hidden="true">
+  <div class="board-history-backdrop" id="board-history-backdrop"></div>
+  <div class="board-history-panel" id="board-history-shell" role="dialog" aria-labelledby="board-history-title">
+    <aside class="board-history-detail" id="board-history-detail-sheet" aria-hidden="true">
+      <div class="board-history-detail-preview" id="board-history-detail-preview"></div>
+      <div class="board-history-detail-scroll">
+        <div class="board-history-detail-meta" id="board-history-detail-meta"></div>
+        <div class="board-history-detail-grid" id="board-history-detail-grid"></div>
+        <div class="board-history-detail-prompt" id="board-history-detail-prompt"></div>
+      </div>
+      <div class="board-history-detail-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="board-history-detail-locate">定位节点</button>
+        <button type="button" class="btn btn-primary btn-sm" id="board-history-detail-place">应用到画布</button>
+      </div>
+    </aside>
+    <div class="board-history-main">
+      <header class="board-history-toolbar">
+        <div class="board-history-filters" id="board-history-filters" role="tablist" aria-label="类型筛选">
+          <span id="board-history-title" class="sr-only">生成历史</span>
+          <button type="button" class="board-history-filter is-active" data-filter="all">全部</button>
+          <button type="button" class="board-history-filter" data-filter="image">图片</button>
+          <button type="button" class="board-history-filter" data-filter="video">视频</button>
+        </div>
+        <div class="board-history-tools">
+          <button type="button" class="board-history-view-btn" id="board-history-multi" title="多选" aria-label="多选" aria-pressed="false">多选</button>
+          <div class="board-history-size" id="board-history-size" role="group" aria-label="缩略图大小">
+            <button type="button" class="board-history-size-btn is-active" data-size="sm" title="小">小</button>
+            <button type="button" class="board-history-size-btn" data-size="md" title="中">中</button>
+            <button type="button" class="board-history-size-btn" data-size="lg" title="大">大</button>
+          </div>
+          <button type="button" class="board-history-view-btn is-active" id="board-history-view-grid" data-view="grid" title="平铺" aria-label="平铺">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+          </button>
+          <button type="button" class="board-history-view-btn" id="board-history-view-list" data-view="list" title="列表" aria-label="列表">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </button>
+          <button type="button" class="icon-btn" id="board-history-close" title="关闭" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        </div>
+      </header>
+      <div class="board-history-selbar" id="board-history-selbar" hidden>
+        <span id="board-history-sel-count">已选 0</span>
+        <button type="button" class="btn btn-ghost btn-sm" id="board-history-select-all">全选</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="board-history-clear-sel">取消选择</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="board-history-pack">打包下载</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="board-history-locate">定位节点</button>
+        <button type="button" class="btn btn-primary btn-sm" id="board-history-place">应用到画布</button>
+      </div>
+      <div class="board-history-body" id="board-history-body" data-size="sm" data-view="grid"></div>
+      <footer class="board-history-foot">
+        <span id="board-history-count">共 0 项</span>
+        <div class="board-history-pager" id="board-history-pager"></div>
+        <label class="board-history-pagesize">
+          每页
+          <select id="board-history-page-size" aria-label="每页数量">
+            <option value="24">24</option>
+            <option value="42" selected>42</option>
+            <option value="60">60</option>
+            <option value="100">100</option>
+          </select>
+          项
+        </label>
+        <label class="board-history-failed">
+          <input type="checkbox" id="board-history-show-failed" />
+          显示失败
+        </label>
+      </footer>
+    </div>
+  </div>
+</div>
+
+<div id="text-result-expand" class="text-result-expand hidden" aria-hidden="true">
+    <div class="text-result-expand-backdrop" id="text-result-expand-backdrop"></div>
+    <div class="text-result-expand-box" role="dialog" aria-labelledby="text-result-expand-title">
+      <header class="text-result-expand-head">
+        <button type="button" class="lb-btn" id="text-result-copy" title="复制">⎘</button>
+        <span id="text-result-expand-title">生成结果</span>
+        <button type="button" class="lb-btn" id="text-result-expand-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <textarea id="text-result-editor" class="text-result-editor" spellcheck="false" placeholder="生成结果将显示在这里…"></textarea>
+      <footer class="text-result-expand-foot">
+        <span id="text-result-count">0 字</span>
+        <button type="button" class="btn btn-primary" id="text-result-save">完成</button>
+      </footer>
+    </div>
+  </div>
+
+<div id="video-crop-studio" class="vcrop-studio hidden" aria-hidden="true">
+    <div class="vcrop-backdrop" id="vcrop-backdrop"></div>
+    <div class="vcrop-panel" role="dialog" aria-labelledby="vcrop-title">
+      <header class="vcrop-head">
+        <div class="vcrop-head-left">
+          <h2 id="vcrop-title">宽高裁剪</h2>
+          <p>选择比例后拖动裁剪框，确认后按框内区域输出</p>
+        </div>
+        <button type="button" class="lb-btn" id="vcrop-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="vcrop-body">
+        <div class="vcrop-main">
+          <div class="vcrop-stage" id="vcrop-stage">
+            <video id="vcrop-video" playsinline muted preload="auto"></video>
+            <div class="vcrop-dim" id="vcrop-dim" aria-hidden="true"></div>
+            <div class="vcrop-box" id="vcrop-box">
+              <span class="vcrop-handle" data-corner="nw"></span>
+              <span class="vcrop-handle" data-corner="ne"></span>
+              <span class="vcrop-handle" data-corner="sw"></span>
+              <span class="vcrop-handle" data-corner="se"></span>
+            </div>
+          </div>
+          <div class="vcrop-transport">
+            <button type="button" class="fc-ctrl-btn" data-vcrop="toggle" id="vcrop-play"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 3.2v9.6l8-4.8z"/></svg></button>
+            <span class="vcrop-time" id="vcrop-time">00:00 / 00:00</span>
+            <input type="range" id="vcrop-seek" min="0" max="1000" value="0" step="1" />
+          </div>
+        </div>
+        <aside class="vcrop-side">
+          <div class="vcrop-side-label">裁剪比例</div>
+          <div class="vcrop-ratio-grid" id="vcrop-ratio-grid">
+            <button type="button" class="vcrop-ratio-btn" data-ratio="free">自由</button>
+            <button type="button" class="vcrop-ratio-btn active" data-ratio="1:1">1:1</button>
+            <button type="button" class="vcrop-ratio-btn" data-ratio="16:9">16:9</button>
+            <button type="button" class="vcrop-ratio-btn" data-ratio="9:16">9:16</button>
+            <button type="button" class="vcrop-ratio-btn" data-ratio="4:3">4:3</button>
+            <button type="button" class="vcrop-ratio-btn" data-ratio="3:4">3:4</button>
+            <button type="button" class="vcrop-ratio-btn" data-ratio="origin">原比例</button>
+          </div>
+          <div class="vcrop-side-label" style="margin-top:16px">输出信息</div>
+          <div class="vcrop-meta"><span>源分辨率</span><strong id="vcrop-src">—</strong></div>
+          <div class="vcrop-meta"><span>裁剪区域</span><strong id="vcrop-region">—</strong></div>
+          <div class="vcrop-meta"><span>输出比例</span><strong id="vcrop-out-ratio">1:1</strong></div>
+          <p class="vcrop-note" id="vcrop-note">拖动裁剪框移动位置；拖角可缩放（锁定比例）。</p>
+        </aside>
+      </div>
+      <footer class="vcrop-foot">
+        <button type="button" class="btn btn-ghost" id="vcrop-cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="vcrop-confirm">确认裁剪</button>
+      </footer>
+    </div>
+  </div>
+
+<div id="image-crop-studio" class="icrop-studio hidden" aria-hidden="true">
+    <div class="icrop-backdrop" id="icrop-backdrop"></div>
+    <div class="icrop-panel" role="dialog" aria-labelledby="icrop-title">
+      <header class="icrop-head">
+        <div class="icrop-head-left">
+          <h2 id="icrop-title">图片裁剪</h2>
+          <p>选择比例后拖动裁剪框，确认后按框内区域输出</p>
+        </div>
+        <button type="button" class="lb-btn" id="icrop-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="icrop-body">
+        <div class="icrop-main">
+          <div class="icrop-stage" id="icrop-stage">
+            <img id="icrop-image" alt="" draggable="false" />
+            <div class="icrop-box" id="icrop-box">
+              <span class="icrop-handle" data-corner="nw"></span>
+              <span class="icrop-handle" data-corner="ne"></span>
+              <span class="icrop-handle" data-corner="sw"></span>
+              <span class="icrop-handle" data-corner="se"></span>
+              <span class="icrop-edge" data-edge="n"></span>
+              <span class="icrop-edge" data-edge="s"></span>
+              <span class="icrop-edge" data-edge="w"></span>
+              <span class="icrop-edge" data-edge="e"></span>
+            </div>
+          </div>
+        </div>
+        <aside class="icrop-side">
+          <div class="icrop-side-label">裁剪比例</div>
+          <div class="icrop-ratio-grid" id="icrop-ratio-grid">
+            <button type="button" class="icrop-ratio-btn active" data-ratio="free">自由</button>
+            <button type="button" class="icrop-ratio-btn" data-ratio="1:1">1:1</button>
+            <button type="button" class="icrop-ratio-btn" data-ratio="16:9">16:9</button>
+            <button type="button" class="icrop-ratio-btn" data-ratio="9:16">9:16</button>
+            <button type="button" class="icrop-ratio-btn" data-ratio="4:3">4:3</button>
+            <button type="button" class="icrop-ratio-btn" data-ratio="3:4">3:4</button>
+            <button type="button" class="icrop-ratio-btn" data-ratio="origin">原图</button>
+          </div>
+          <div class="icrop-side-label" style="margin-top:16px">输出信息</div>
+          <div class="icrop-meta"><span>源分辨率</span><strong id="icrop-src">—</strong></div>
+          <div class="icrop-meta"><span>裁剪区域</span><strong id="icrop-region">—</strong></div>
+          <div class="icrop-meta"><span>输出比例</span><strong id="icrop-out-ratio">自由</strong></div>
+          <p class="icrop-note">拖动裁剪框移动位置；拖角或边可缩放。选「自由」可不锁定比例。</p>
+        </aside>
+      </div>
+      <footer class="icrop-foot">
+        <button type="button" class="btn btn-ghost" id="icrop-cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="icrop-confirm">确认</button>
+      </footer>
+    </div>
+  </div>
+
+<div id="image-grid-studio" class="igrid-studio hidden" aria-hidden="true">
+    <div class="igrid-backdrop" id="igrid-backdrop"></div>
+    <div class="igrid-panel" role="dialog" aria-labelledby="igrid-title">
+      <header class="igrid-head">
+        <div class="igrid-head-left">
+          <h2 id="igrid-title">宫格分割</h2>
+          <p>自动识别宫格线，可拖动或添加横竖分割线，确认后输出多张图片节点</p>
+        </div>
+        <button type="button" class="lb-btn" id="igrid-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="igrid-body">
+        <div class="igrid-main">
+          <div class="igrid-stage" id="igrid-stage">
+            <img id="igrid-image" alt="" draggable="false" />
+            <div class="igrid-overlay" id="igrid-overlay"></div>
+          </div>
+        </div>
+        <aside class="igrid-side">
+          <div class="igrid-side-label">分割线</div>
+          <div class="igrid-actions">
+            <button type="button" class="igrid-action-btn" id="igrid-auto">自动识别</button>
+            <button type="button" class="igrid-action-btn" id="igrid-add-h">+ 横线</button>
+            <button type="button" class="igrid-action-btn" id="igrid-add-v">+ 竖线</button>
+            <button type="button" class="igrid-action-btn igrid-action-muted" id="igrid-clear">清除全部</button>
+          </div>
+          <div class="igrid-line-list" id="igrid-line-list"></div>
+          <div class="igrid-side-label" style="margin-top:14px">输出</div>
+          <div class="igrid-meta"><span>宫格</span><strong id="igrid-grid-size">1×1</strong></div>
+          <div class="igrid-meta"><span>图片数</span><strong id="igrid-out-count">1</strong></div>
+          <div class="igrid-meta"><span>源分辨率</span><strong id="igrid-src">—</strong></div>
+          <p class="igrid-note">拖动彩色线微调位置；横线分隔上下，竖线分隔左右。每张宫格会生成一个引用图片节点。</p>
+        </aside>
+      </div>
+      <footer class="igrid-foot">
+        <button type="button" class="btn btn-ghost" id="igrid-cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="igrid-confirm">确认分割</button>
+      </footer>
+    </div>
+  </div>
+
+<div id="image-paint-studio" class="ipaint-studio hidden" aria-hidden="true">
+    <div class="ipaint-backdrop" id="ipaint-backdrop"></div>
+    <div class="ipaint-panel" role="dialog" aria-labelledby="ipaint-title">
+      <header class="ipaint-head">
+        <div class="ipaint-head-left">
+          <h2 id="ipaint-title">画笔标注</h2>
+          <p>画线、箭头、矩形、文字标注图片，确认后输出为新图片节点</p>
+        </div>
+        <button type="button" class="lb-btn" id="ipaint-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="ipaint-body">
+        <div class="ipaint-main">
+          <div class="ipaint-tools" id="ipaint-tools">
+            <button type="button" class="ipaint-tool-btn active" data-tool="brush" title="画笔 (B)">画笔</button>
+            <button type="button" class="ipaint-tool-btn" data-tool="eraser" title="橡皮 (E)">橡皮</button>
+            <button type="button" class="ipaint-tool-btn" data-tool="line" title="直线 (L)">直线</button>
+            <button type="button" class="ipaint-tool-btn" data-tool="arrow" title="箭头 (A)">箭头</button>
+            <button type="button" class="ipaint-tool-btn" data-tool="rect" title="矩形 (R)">矩形</button>
+            <button type="button" class="ipaint-tool-btn" data-tool="text" title="文字 (T)">文字</button>
+          </div>
+          <div class="ipaint-stage" id="ipaint-stage">
+            <canvas id="ipaint-canvas"></canvas>
+            <input type="text" id="ipaint-text-input" class="ipaint-text-input hidden" autocomplete="off" spellcheck="false" placeholder="输入文字…" />
+          </div>
+        </div>
+        <aside class="ipaint-side">
+          <div class="ipaint-side-label">颜色</div>
+          <div class="ipaint-colors" id="ipaint-colors">
+            <button type="button" class="ipaint-color-swatch active" data-color="#ff4444" style="background:#ff4444" title="红"></button>
+            <button type="button" class="ipaint-color-swatch" data-color="#ffffff" style="background:#ffffff" title="白"></button>
+            <button type="button" class="ipaint-color-swatch" data-color="#ffd93d" style="background:#ffd93d" title="黄"></button>
+            <button type="button" class="ipaint-color-swatch" data-color="#6bcb77" style="background:#6bcb77" title="绿"></button>
+            <button type="button" class="ipaint-color-swatch" data-color="#4d96ff" style="background:#4d96ff" title="蓝"></button>
+            <button type="button" class="ipaint-color-swatch" data-color="#111111" style="background:#111111" title="黑"></button>
+          </div>
+          <label class="ipaint-color-custom">
+            <span>自定义</span>
+            <input type="color" id="ipaint-color-picker" value="#ff4444" />
+          </label>
+          <div class="ipaint-side-label" style="margin-top:14px">粗细</div>
+          <div class="ipaint-size-row">
+            <input type="range" id="ipaint-size" min="1" max="48" step="1" value="24" />
+            <span id="ipaint-size-val">24px</span>
+          </div>
+          <div class="ipaint-side-label" style="margin-top:14px">文字大小</div>
+          <div class="ipaint-size-row">
+            <input type="range" id="ipaint-font-size" min="12" max="96" step="1" value="24" />
+            <span id="ipaint-font-size-val">24px</span>
+          </div>
+          <div class="ipaint-actions">
+            <button type="button" class="ipaint-action-btn" id="ipaint-undo">撤销</button>
+            <button type="button" class="ipaint-action-btn ipaint-action-muted" id="ipaint-clear">清空标注</button>
+          </div>
+          <div class="ipaint-side-label" style="margin-top:14px">输出</div>
+          <div class="ipaint-meta"><span>源分辨率</span><strong id="ipaint-src">—</strong></div>
+          <div class="ipaint-meta"><span>标注层</span><strong id="ipaint-layer-count">0</strong></div>
+          <p class="ipaint-note">拖动绘制 · 文字工具点击放置 · Ctrl+Z 撤销 · Enter 确认输出</p>
+        </aside>
+      </div>
+      <footer class="ipaint-foot">
+        <button type="button" class="btn btn-ghost" id="ipaint-cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="ipaint-confirm">确认输出</button>
+      </footer>
+    </div>
+  </div>
+
+<div id="video-trim-studio" class="vt-studio hidden" aria-hidden="true">
+    <div class="vt-panel">
+      <header class="vt-head">
+        <div class="vt-head-left">
+          <h2>裁剪视频长度</h2>
+          <p>拖动入点 / 出点确定保留区间，其余部分将被裁剪</p>
+        </div>
+        <div class="vt-head-right">
+          <span id="vt-selected-label">已选 00:00.00</span>
+          <span class="vt-hint">限 0.1秒 – 全长</span>
+          <button type="button" class="lb-btn" id="vt-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        </div>
+      </header>
+      <div class="vt-body">
+        <div class="vt-main">
+          <div class="vt-video-wrap">
+            <video id="vt-video" playsinline preload="auto"></video>
+            <div class="vt-stamp" id="vt-stamp">00:00.00</div>
+          </div>
+          <div class="vt-transport">
+            <button type="button" class="fc-ctrl-btn" data-vt="prev-frame" title="上一帧"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button type="button" class="fc-ctrl-btn" data-vt="back-1" title="后退1秒"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8.5 3.5L4 8l4.5 4.5M12.5 3.5L8 8l4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button type="button" class="fc-ctrl-btn fc-play-btn" data-vt="toggle" id="vt-play"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 3.2v9.6l8-4.8z"/></svg></button>
+            <button type="button" class="fc-ctrl-btn" data-vt="fwd-1" title="前进1秒"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 3.5L8 8l-4.5 4.5M7.5 3.5L12 8l-4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button type="button" class="fc-ctrl-btn" data-vt="next-frame" title="下一帧"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <span class="vt-time" id="vt-time">00:00.00 / 00:00.00</span>
+            <button type="button" class="btn vt-mark-btn" id="vt-set-in">设为入点 [</button>
+            <button type="button" class="btn vt-mark-btn" id="vt-set-out">设为出点 ]</button>
+          </div>
+          <div class="vt-film" id="vt-film">
+            <div class="vt-film-track" id="vt-film-track"></div>
+            <div class="vt-range" id="vt-range">
+              <div class="vt-handle vt-handle-in" id="vt-handle-in"></div>
+              <div class="vt-handle vt-handle-out" id="vt-handle-out"></div>
+            </div>
+            <div class="vt-playhead" id="vt-playhead"></div>
+          </div>
+        </div>
+        <aside class="vt-side">
+          <div class="vt-side-label">区间</div>
+          <label class="vt-field"><span>入点</span><input id="vt-in" type="text" value="00:00.00" /></label>
+          <label class="vt-field"><span>出点</span><input id="vt-out" type="text" value="00:00.00" /></label>
+          <div class="vt-meta-row"><span>保留时长</span><strong id="vt-keep">00:00.00</strong></div>
+          <div class="vt-side-label" style="margin-top:14px">信息</div>
+          <div class="vt-meta-row"><span>原时长</span><strong id="vt-dur">—</strong></div>
+          <div class="vt-meta-row"><span>分辨率</span><strong id="vt-res">—</strong></div>
+          <div class="vt-meta-row"><span>输出</span><strong>保持原分辨率</strong></div>
+        </aside>
+      </div>
+      <footer class="vt-foot">
+        <div class="fc-shortcuts">
+          <span><kbd>空格</kbd> 播放</span>
+          <span><kbd>←→</kbd> 逐帧</span>
+          <span><kbd>Shift</kbd>+<kbd>←→</kbd> 1秒</span>
+          <span><kbd>[</kbd><kbd>]</kbd> 入/出点</span>
+          <span><kbd>Enter</kbd> 确认</span>
+        </div>
+        <div class="fc-foot-actions">
+          <button type="button" class="btn btn-ghost" id="vt-cancel">取消</button>
+          <button type="button" class="btn btn-primary" id="vt-confirm">确认裁剪</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+<div id="video-compress-modal" class="vc-modal hidden" aria-hidden="true">
+    <div class="vc-backdrop" id="vc-backdrop"></div>
+    <div class="vc-box">
+      <header class="vc-head">
+        <h2>视频压缩</h2>
+        <button type="button" class="lb-btn" id="vc-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="vc-body">
+        <div class="vc-preview"><video id="vc-video" playsinline muted preload="metadata"></video></div>
+        <aside class="vc-side">
+          <div class="vc-block">
+            <div class="vc-label">源分辨率</div>
+            <div class="vc-src" id="vc-src">—</div>
+          </div>
+          <div class="vc-block">
+            <div class="vc-label">目标分辨率</div>
+            <div class="vc-scale-grid" id="vc-scale-grid">
+              <button type="button" class="vc-scale-btn active" data-scale="smart">智能适配 · 推荐</button>
+              <button type="button" class="vc-scale-btn" data-scale="1080">1080P</button>
+              <button type="button" class="vc-scale-btn" data-scale="720">720P</button>
+              <button type="button" class="vc-scale-btn" data-scale="480">480P</button>
+              <button type="button" class="vc-scale-btn" data-scale="360">360P</button>
+            </div>
+          </div>
+          <div class="vc-block">
+            <div class="vc-label">目标帧率</div>
+            <div class="vc-fps-grid" id="vc-fps-grid">
+              <button type="button" class="vc-fps-btn active" data-fps="0">源帧率</button>
+              <button type="button" class="vc-fps-btn" data-fps="30">30fps</button>
+              <button type="button" class="vc-fps-btn" data-fps="24">24fps</button>
+              <button type="button" class="vc-fps-btn" data-fps="15">15fps</button>
+            </div>
+          </div>
+          <div class="vc-block">
+            <div class="vc-label">输出</div>
+            <div class="vc-out" id="vc-out">—</div>
+            <p class="vc-note">按比例缩小、不放大；帧率只降不升；保留原音频。</p>
+          </div>
+        </aside>
+      </div>
+      <footer class="vc-foot">
+        <button type="button" class="btn btn-primary" id="vc-confirm">确认压缩</button>
+      </footer>
+    </div>
+  </div>
+<div id="video-gif-studio" class="vg-modal hidden" aria-hidden="true">
+    <div class="vg-backdrop" id="vg-backdrop"></div>
+    <div class="vg-box">
+      <header class="vg-head">
+        <h2>视频转动图</h2>
+        <span id="vg-sel-label">选择时长 0:05.0 · 约 50 帧</span>
+        <button type="button" class="lb-btn" id="vg-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="vg-preview">
+        <video id="vg-video" playsinline preload="auto"></video>
+        <button type="button" class="fc-play-overlay" id="vg-play-overlay"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+      </div>
+      <div class="vg-film" id="vg-film">
+        <div class="vg-film-track" id="vg-film-track"></div>
+        <div class="vg-range" id="vg-range">
+          <div class="vg-handle vg-handle-in" id="vg-handle-in"></div>
+          <div class="vg-handle vg-handle-out" id="vg-handle-out"></div>
+        </div>
+      </div>
+      <div class="vg-times"><span id="vg-t0">0:00.0</span><span id="vg-t1">0:05.0</span></div>
+      <div class="vg-opts">
+        <label class="vg-field"><span>格式</span>
+          <select id="vg-format"><option value="gif">GIF (.gif)</option><option value="webp">WebP (.webp · 体积更小)</option></select>
+        </label>
+        <label class="vg-field"><span>帧率</span>
+          <select id="vg-fps">
+            <option value="8">8 fps (小体积)</option>
+            <option value="10" selected>10 fps (推荐)</option>
+            <option value="12">12 fps</option>
+            <option value="15">15 fps (流畅)</option>
+            <option value="20">20 fps (高)</option>
+          </select>
+        </label>
+        <label class="vg-field"><span>输出宽度</span><input id="vg-width" type="number" min="64" max="1280" value="480" /></label>
+        <label class="vg-field"><span>画质</span>
+          <select id="vg-quality">
+            <option value="high">高清 (256色)</option>
+            <option value="standard" selected>标准 (128色)</option>
+            <option value="smooth">流畅 (64色)</option>
+          </select>
+        </label>
+      </div>
+      <p class="vg-dim" id="vg-dim">原始尺寸 — · 输出 —</p>
+      <footer class="vg-foot">
+        <button type="button" class="btn btn-ghost" id="vg-reset">重置</button>
+        <div class="fc-foot-actions">
+          <button type="button" class="btn btn-ghost" id="vg-cancel">取消</button>
+          <button type="button" class="btn btn-primary" id="vg-confirm">转换为 GIF</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+<div id="video-lightbox" class="video-lightbox hidden" aria-hidden="true">
+    <div class="vl-backdrop" id="vl-backdrop"></div>
+    <div class="vl-topbar">
+      <span class="vl-meta" id="vl-meta">—</span>
+      <button type="button" class="lb-btn vl-capture-btn" id="vl-capture" title="截取当前帧">截帧</button>
+      <a class="lb-btn" id="vl-download" href="#" download title="下载">↓</a>
+      <button type="button" class="lb-btn" id="vl-close" title="关闭 (Esc)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    </div>
+    <button type="button" class="vl-side-btn vl-side-prev" id="vl-side-prev" title="上一个"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="vl-side-btn vl-side-next" id="vl-side-next" title="下一个"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="vl-stage" id="vl-stage">
+      <div class="vl-video-shell" id="vl-video-shell">
+        <video id="vl-video" playsinline preload="auto"></video>
+        <div class="vl-loading" id="vl-loading" hidden>
+          <span class="vl-loading-spinner" aria-hidden="true"></span>
+          <span class="vl-loading-text">视频加载中…</span>
+        </div>
+        <button type="button" class="vl-play-big" id="vl-play-big" title="播放/暂停" aria-label="播放">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <div class="vl-chrome">
+          <button type="button" class="vl-chrome-btn" id="vl-toggle" title="播放/暂停"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 3.2v9.6l8-4.8z"/></svg></button>
+          <button type="button" class="vl-chrome-btn" id="vl-frame-prev" title="上一帧"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8.5 3.5L4 8l4.5 4.5M12.5 3.5L8 8l4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" class="vl-chrome-btn" id="vl-frame-next" title="下一帧"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 3.5L8 8l-4.5 4.5M7.5 3.5L12 8l-4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <div class="vl-scrub" id="vl-scrub"><div class="vl-scrub-fill" id="vl-scrub-fill"></div></div>
+          <span class="vl-time" id="vl-time">00:00 / 00:00</span>
+          <button type="button" class="vl-chrome-btn vl-chrome-capture" id="vl-capture-chrome" title="截取当前帧">截帧</button>
+        </div>
+      </div>
+    </div>
+    <div class="vl-bottom">
+      <div class="vl-pills">
+        <span class="vl-pill" id="vl-counter">相邻节点 1 / 1</span>
+        <div class="vl-pill vl-switch-pill">
+          <button type="button" class="vl-mini-btn" id="vl-prev" title="上一个"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" class="vl-mini-btn" id="vl-next" title="下一个"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <span>切换</span>
+        </div>
+        <button type="button" class="vl-pill vl-locate-pill" id="vl-locate" title="定位到节点">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3" stroke="currentColor"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2" stroke="currentColor" stroke-linecap="round"/></svg>
+          定位到节点
+        </button>
+      </div>
+      <div class="vl-thumbs" id="vl-thumbs"></div>
+    </div>
+  </div>
+
+<div id="frame-capture-studio" class="fc-studio hidden" aria-hidden="true">
+    <div class="fc-studio-panel" role="dialog" aria-labelledby="fc-studio-title">
+      <header class="fc-studio-head">
+        <div class="fc-studio-head-left">
+          <h2 id="fc-studio-title">视频截帧</h2>
+          <p class="fc-studio-desc">拖动或微调定位画面，可暂存多帧一次添加到画布</p>
+        </div>
+        <div class="fc-studio-head-right">
+          <span class="fc-studio-res" id="fc-studio-res">—</span>
+          <button type="button" class="lb-btn" id="fc-studio-close" title="关闭 (Esc)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        </div>
+      </header>
+
+      <div class="fc-studio-body">
+        <div class="fc-studio-main">
+          <div class="fc-video-wrap" id="fc-video-wrap">
+            <video id="fc-video" playsinline preload="auto"></video>
+            <div class="fc-video-time" id="fc-video-time">00:00.00</div>
+            <button type="button" class="fc-play-overlay" id="fc-play-overlay" title="播放 (空格)" aria-label="播放">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <aside class="fc-studio-side">
+          <div class="fc-side-block">
+            <div class="fc-side-label">跳转到时间</div>
+            <div class="fc-jump-row">
+              <input type="text" id="fc-jump-input" class="fc-jump-input" value="00:00.00" spellcheck="false" autocomplete="off" />
+              <button type="button" class="btn btn-primary fc-jump-btn" id="fc-jump-btn">跳转</button>
+            </div>
+          </div>
+          <div class="fc-meta-list">
+            <div class="fc-meta-row"><span>时长</span><strong id="fc-meta-duration">—</strong></div>
+            <div class="fc-meta-row"><span>分辨率</span><strong id="fc-meta-res">—</strong></div>
+            <div class="fc-meta-row"><span>输出</span><strong>PNG · 原始分辨率</strong></div>
+          </div>
+          <div class="fc-side-block fc-staged-block">
+            <div class="fc-side-label">已暂存 <span id="fc-staged-count">0</span> 帧</div>
+            <div class="fc-staged-list" id="fc-staged-list">
+              <p class="fc-staged-empty" id="fc-staged-empty">按 S 或点「暂存此帧」收集多帧，最后一次性添加到画布。</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="fc-studio-controls">
+        <div class="fc-controls-row">
+          <div class="fc-transport">
+            <button type="button" class="fc-ctrl-btn" data-fc="home" title="首帧 (Home)">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 3h1.5v10H3V3zm2.5 5L13 3v10L5.5 8z"/></svg>
+            </button>
+            <button type="button" class="fc-ctrl-btn" data-fc="back-1" title="后退 1 秒">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 3v10L2 8l6-5zm6 0v10l-6-5 6-5z"/></svg>
+            </button>
+            <button type="button" class="fc-ctrl-btn" data-fc="prev-frame" title="上一帧 (←)">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10.5 3v10L4 8l6.5-5z"/></svg>
+            </button>
+            <button type="button" class="fc-ctrl-btn fc-play-btn" data-fc="toggle" title="播放/暂停 (空格)" id="fc-btn-play">
+              <svg class="fc-icon-play" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5-9-5.5z"/></svg>
+              <svg class="fc-icon-pause hidden" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 2.5h3v11h-3v-11zm6 0h3v11h-3v-11z"/></svg>
+            </button>
+            <button type="button" class="fc-ctrl-btn" data-fc="next-frame" title="下一帧 (→)">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5.5 3v10L12 8 5.5 3z"/></svg>
+            </button>
+            <button type="button" class="fc-ctrl-btn" data-fc="fwd-1" title="前进 1 秒">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3v10l6-5-6-5zm6 0v10l6-5-6-5z"/></svg>
+            </button>
+            <button type="button" class="fc-ctrl-btn" data-fc="end" title="尾帧 (End)">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.5 3H13v10h-1.5V3zM3 3l7.5 5L3 13V3z"/></svg>
+            </button>
+          </div>
+          <div class="fc-time-readout" id="fc-time-readout">00:00.00 / 00:00.00</div>
+          <button type="button" class="btn fc-stage-btn" id="fc-stage-btn">+ 暂存此帧 <kbd>S</kbd></button>
+        </div>
+        <div class="fc-filmstrip" id="fc-filmstrip" title="拖动定位">
+          <div class="fc-filmstrip-track" id="fc-filmstrip-track"></div>
+          <div class="fc-filmstrip-playhead" id="fc-filmstrip-playhead"></div>
+        </div>
+      </div>
+
+      <footer class="fc-studio-foot">
+        <div class="fc-shortcuts" aria-hidden="true">
+          <span><kbd>空格</kbd> 播放</span>
+          <span><kbd>←</kbd><kbd>→</kbd> 逐帧</span>
+          <span><kbd>Shift</kbd>+<kbd>←→</kbd> 1秒</span>
+          <span><kbd>Home</kbd>/<kbd>End</kbd> 首尾</span>
+          <span><kbd>S</kbd> 暂存</span>
+          <span><kbd>Enter</kbd> 确认</span>
+        </div>
+        <div class="fc-foot-actions">
+          <button type="button" class="btn btn-ghost" id="fc-cancel-btn">取消</button>
+          <button type="button" class="btn btn-primary" id="fc-confirm-btn">提取当前帧</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+<div id="audio-trim-studio" class="at-studio hidden" aria-hidden="true">
+    <div class="at-backdrop" data-at="close"></div>
+    <div class="at-panel" role="dialog" aria-labelledby="at-title">
+      <header class="at-head">
+        <h3 id="at-title">裁剪音频</h3>
+        <div class="at-head-right">
+          <span class="at-sel-pill" id="at-sel-label">当前选择 0:00.0 / 总时长 0:00.0</span>
+          <button type="button" class="lb-btn" id="at-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        </div>
+      </header>
+      <div class="at-wave-wrap">
+        <div class="at-wave" id="at-wave" aria-hidden="true"></div>
+        <button type="button" class="at-play-overlay" id="at-play" title="播放/暂停" aria-label="播放">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <audio id="at-audio" preload="auto"></audio>
+      </div>
+      <div class="at-timeline">
+        <div class="at-times"><span id="at-t0">0:00.0</span><span id="at-t1">0:00.0</span></div>
+        <div class="at-range-track" id="at-track">
+          <div class="at-range" id="at-range">
+            <div class="at-handle at-handle-in" id="at-handle-in"></div>
+            <div class="at-handle at-handle-out" id="at-handle-out"></div>
+          </div>
+        </div>
+      </div>
+      <footer class="at-foot">
+        <button type="button" class="btn btn-ghost" id="at-reset">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8a4.5 4.5 0 117.2 3.6M3.5 8V4.5M3.5 8H7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          重置
+        </button>
+        <div class="at-foot-actions">
+          <button type="button" class="btn btn-ghost" id="at-cancel">取消</button>
+          <button type="button" class="btn btn-primary" id="at-confirm">确认裁剪</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+<div id="node-history-drawer" class="history-drawer hidden" aria-hidden="true">
+    <div class="history-drawer-backdrop" id="history-drawer-backdrop"></div>
+    <div class="history-drawer-shell" role="dialog" aria-labelledby="history-shell-title">
+      <header class="history-shell-bar">
+        <h2 id="history-shell-title" class="history-shell-title">节点生成历史</h2>
+        <button type="button" class="lb-btn history-shell-close" id="history-drawer-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="history-shell-body">
+        <div class="history-stage-col">
+          <div class="history-stage" id="history-stage">
+            <div class="history-stage-empty">选择记录查看预览</div>
+          </div>
+          <div id="history-stage-dock" class="history-dock history-dock--stage" aria-label="节点生成记录">
+            <div class="history-dock-stats">
+              <button type="button" class="history-dock-stat active" data-nh-filter="success" title="完成">
+                <span>完成</span><strong id="nh-count-ok">0</strong>
+              </button>
+              <button type="button" class="history-dock-stat" data-nh-filter="generating" title="生成中">
+                <span>生成中</span><strong id="nh-count-gen">0</strong>
+              </button>
+              <button type="button" class="history-dock-stat" data-nh-filter="failed" title="失败">
+                <span>失败</span><strong id="nh-count-fail">0</strong>
+              </button>
+            </div>
+            <div class="history-dock-thumbs" id="history-stage-thumbs"></div>
+          </div>
+        </div>
+        <aside class="history-drawer-panel">
+          <div class="history-drawer-head">
+            <h3 id="history-drawer-title">参数详情</h3>
+          </div>
+          <div class="history-detail" id="history-detail"></div>
+          <div class="history-drawer-foot">
+            <button type="button" class="btn btn-primary btn-block" id="btn-history-adopt" disabled>采纳到节点</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+<dialog id="modal-gen-records" class="settings-dialog gen-records-dialog">
+    <div class="settings-window gen-records-window">
+      <div class="settings-window-head">
+        <div>
+          <h3>线程记录</h3>
+          <p class="settings-window-sub">并发生成 · 超时重试轮询 · 按工作编号追踪</p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-gen-records-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="settings-window-body">
+        <div class="gen-records-thread-bar" aria-label="线程设置">
+          <div class="gen-records-thread-row">
+            <span class="gen-records-thread-title">并发生成上限</span>
+            <div class="thread-stepper">
+              <button type="button" class="icon-btn" id="btn-thread-badge-minus" title="减少" aria-label="减少线程">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <span id="thread-badge-value">16</span>
+              <button type="button" class="icon-btn" id="btn-thread-badge-plus" title="增加" aria-label="增加线程">+</button>
+            </div>
+          </div>
+          <span class="gen-records-thread-hint">最多同时占用几个生成线程（1–64）</span>
+          <div class="gen-records-api-row">
+            <span class="gen-records-thread-title">上游等待</span>
+            <div class="gen-records-api-bar" aria-label="API 超时与轮询">
+              <label class="gen-records-api-field" title="上游任务最长等待时间（小时）">
+                <span>超时</span>
+                <input type="number" id="thread-api-timeout" min="1" max="24" step="1" value="4" />
+                <span class="gen-records-api-unit">h</span>
+              </label>
+              <label class="gen-records-api-field" title="API 无响应 / 网络错误时最多重试次数">
+                <span>重试</span>
+                <input type="number" id="thread-api-retries" min="0" max="30" step="1" value="10" />
+                <span class="gen-records-api-unit">次</span>
+              </label>
+              <label class="gen-records-api-field" title="任务状态轮询间隔（秒）">
+                <span>轮询</span>
+                <input type="number" id="thread-api-poll" min="1" max="60" step="1" value="10" />
+                <span class="gen-records-api-unit">s</span>
+              </label>
+            </div>
+          </div>
+          <span class="gen-records-thread-hint">超时默认 4 小时；重试默认 10 次；轮询默认 10 秒</span>
+        </div>
+        <div class="gen-records-toolbar">
+          <label class="gen-records-search" for="gen-records-search">
+            <span class="gen-records-search-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.2" stroke="currentColor" stroke-width="1.4"/><path d="M10.2 10.2L13.4 13.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+            <input type="search" id="gen-records-search" placeholder="搜索编号或提示词" autocomplete="off" />
+          </label>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-gen-records-refresh">刷新</button>
+        </div>
+        <div class="gen-records-clear-bar" aria-label="清理记录">
+          <button type="button" class="btn-chip gen-records-clear-btn" data-purge="failed">删除失败</button>
+          <button type="button" class="btn-chip gen-records-clear-btn is-danger" data-purge="all" title="清空已结束记录，生成中和排队中会保留">清空全部</button>
+          <button type="button" class="btn-chip gen-records-clear-btn" data-purge-keep="20">保留最近 20</button>
+          <button type="button" class="btn-chip gen-records-clear-btn" data-purge-keep="50">保留最近 50</button>
+          <button type="button" class="btn-chip gen-records-clear-btn" data-purge-keep="100">保留最近 100</button>
+        </div>
+        <div class="admin-kind-tabs gen-records-status-tabs" id="gen-records-status-tabs">
+          <button type="button" class="btn-chip is-active" data-gen-status="">全部</button>
+          <button type="button" class="btn-chip" data-gen-status="generating">生成中</button>
+          <button type="button" class="btn-chip" data-gen-status="completed">成功</button>
+          <button type="button" class="btn-chip" data-gen-status="failed">失败</button>
+        </div>
+        <p class="card-desc gen-records-summary" id="gen-records-summary">共 0 条</p>
+        <div class="table-wrap gen-records-table-wrap">
+          <table class="gen-records-table">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>编号</th>
+                <th>模型</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>耗时</th>
+                <th>摘要</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="gen-records-tbody"></tbody>
+          </table>
+        </div>
+        <div class="gen-records-pager" id="gen-records-pager">
+          <button type="button" class="btn btn-ghost btn-sm" id="gen-records-prev" disabled>上一页</button>
+          <span class="gen-records-page-info" id="gen-records-page-info">第 1 / 1 页</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="gen-records-next" disabled>下一页</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="modal-gen-record-detail" class="modal-dialog">
+    <div class="settings-window" style="max-width:720px;width:min(720px,92vw)">
+      <div class="settings-window-head">
+        <div>
+          <h3 id="gen-record-detail-title">工作编号</h3>
+          <p class="settings-window-sub" id="gen-record-detail-meta"></p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-gen-record-detail-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <pre id="gen-record-detail-body" style="white-space:pre-wrap;word-break:break-word;max-height:min(60vh,480px);overflow:auto;margin:0;padding:12px 16px;font-size:12px;opacity:.9"></pre>
+      <div class="settings-window-foot" style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:10px 16px 14px">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-gen-record-view-request">查看请求</button>
+        <button type="button" class="btn primary btn-sm" id="btn-gen-record-detail-close-foot">关闭</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/static/js/app-page.js?v=b205"></script>
+  <script src="/static/js/autofill-guard.js?v=b205"></script>
+  <script src="/static/js/overlay-anim.js?v=b205"></script>
+  <script src="/static/js/app-dialog.js?v=b205"></script>
+  <script src="/static/js/server-watch.js?v=b205"></script>
+  <script src="/static/js/canvas-stale-guard.js?v=b205"></script>
+  <script src="/static/js/theme.js?v=b205"></script>
+  <script src="/static/js/auth.js?v=b211"></script>
+  <script src="/static/js/prefix-manager.js?v=b205"></script>
+  <script src="/static/js/ui-select.js?v=b205"></script>
+  <script src="/static/js/document-save.js?v=b205"></script>
+  <script src="/static/js/canvas.js?v=b213"></script>
+  <script src="/static/js/workspace-transfer.js?v=b206"></script>
+  <script src="/static/js/gen-records.js?v=b211"></script>
+  <script src="/static/js/neowow-import.js?v=b205"></script>
+  <script src="/static/js/agent/rules.js?v=b205"></script>
+  <script src="/static/js/agent/parser.js?v=b205"></script>
+  <script src="/static/js/agent/ops.js?v=b205"></script>
+  <script src="/static/js/agent/runner.js?v=b205"></script>
+  <script src="/static/js/agent/api.js?v=b205"></script>
+  <script src="/static/js/agent/intent.js?v=b205"></script>
+  <script src="/static/js/agent/panel.js?v=b205"></script>
+  <script src="/static/js/agent/index.js?v=b205"></script>
+  <script src="/static/js/app.js?v=b214"></script>
+</body>
+</html>
+

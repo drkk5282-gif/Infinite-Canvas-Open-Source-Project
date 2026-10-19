@@ -1,0 +1,3 @@
+index.html: bytes=59375 chars=55378 bak_chars=50690 bad=0 dialogs=22 edit=True internal=True theme_adapt=True adopt=False rename=True
+canvas.html: bytes=131913 chars=125359 bak_chars=120579 bad=0 dialogs=20 edit=True internal=True theme_adapt=True adopt=True rename=True
+workbench.html: bytes=113702 chars=107502 bak_chars=102814 bad=0 dialogs=23 edit=True internal=True theme_adapt=True adopt=True rename=True

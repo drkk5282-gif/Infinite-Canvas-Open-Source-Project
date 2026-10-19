@@ -1,0 +1,29 @@
+# Local runtime and secrets
+data/
+.env
+.env.*
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Builds and downloaded browsers
+dist/
+build/
+.playwright-browsers/
+*.zip
+
+# Video upscale engine binaries (downloaded on first use)
+tools/engines/
+
+# Editor and OS
+.cursor/
+.idea/
+.vscode/
+*.log
+Thumbs.db
+Desktop.ini

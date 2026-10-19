@@ -1,0 +1,79 @@
+{
+  "default": {
+    "file": "default.png",
+    "x": 3,
+    "y": 9,
+    "w": 32,
+    "h": 32
+  },
+  "pointer": {
+    "file": "pointer.png",
+    "x": 13,
+    "y": 7,
+    "w": 32,
+    "h": 32
+  },
+  "grab": {
+    "file": "grab.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  },
+  "grabbing": {
+    "file": "grabbing.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  },
+  "crosshair": {
+    "file": "crosshair.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  },
+  "not-allowed": {
+    "file": "not-allowed.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  },
+  "text": {
+    "file": "text.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  },
+  "ew-resize": {
+    "file": "ew-resize.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  },
+  "ns-resize": {
+    "file": "ns-resize.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  },
+  "nwse-resize": {
+    "file": "nwse-resize.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  },
+  "nesw-resize": {
+    "file": "nesw-resize.png",
+    "x": 15,
+    "y": 15,
+    "w": 32,
+    "h": 32
+  }
+}

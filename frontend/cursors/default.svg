@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <filter id="sh" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.6" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+  <g filter="url(#sh)">
+    <rect x="20" y="4" width="14" height="32" rx="7" fill="#f0f0f4"/>
+    <ellipse cx="28" cy="44" rx="17" ry="14" fill="#f0f0f4"/>
+    <ellipse cx="11" cy="40" rx="9" ry="11" fill="#f0f0f4" transform="rotate(-28 11 40)"/>
+  </g>
+</svg>

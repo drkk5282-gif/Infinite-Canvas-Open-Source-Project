@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN" translate="no" data-app-page="home">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="google" content="notranslate" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="autocomplete" content="off" />
+  <title>QingZi - 无限画布 | 漫剧制作 | AI图像创作 | AI视频生成 | 智能创意平台</title>
+  <style>
+    html,body{background:var(--bg,#0a0a0a);margin:0;color:var(--text,#ececf0);}
+    html.is-workspace-booting #workspace-home .workspace-home-head,
+    html.is-workspace-booting #workspace-home .workspace-section,
+    html.is-workspace-booting #workspace-home .workspace-board-grid,
+    html.is-workspace-booting #workspace-home .workspace-recovery-hint,
+    html.is-workspace-booting #workspace-home #app-version-badge {
+      opacity:0 !important;
+      visibility:hidden !important;
+      pointer-events:none !important;
+    }
+    html.is-workspace-booting #canvas-enter-loader {
+      display:flex !important;
+      visibility:visible !important;
+      opacity:1 !important;
+      position:fixed;
+      inset:0;
+      align-items:center;
+      justify-content:center;
+      z-index:10055;
+    }
+  </style>
+    <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem("qingzi_canvas_prefs") || localStorage.getItem("doubao_canvas_prefs") || "{}";
+        if (localStorage.getItem("doubao_canvas_prefs") && !localStorage.getItem("qingzi_canvas_prefs")) {
+          localStorage.setItem("qingzi_canvas_prefs", raw);
+          localStorage.removeItem("doubao_canvas_prefs");
+        }
+        var d = JSON.parse(raw);
+        var t = d.theme || "default";
+        if (t && t !== "default") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+<link rel="icon" href="/favicon.ico?v=b205" type="image/svg+xml" />
+
+<link rel="stylesheet" href="/static/css/style.css?v=b214" />
+  <link rel="stylesheet" href="/static/css/theme-adapt.css?v=b214" />
+<script>
+    (function () {
+      var h = location.hash || "";
+      var m;
+      if ((m = h.match(/^#\/share\/([^/?#]+)/))) {
+        location.replace("/canvas?share=" + encodeURIComponent(decodeURIComponent(m[1])));
+        return;
+      }
+      if ((m = h.match(/^#\/b\/([^/?#]+)/))) {
+        location.replace("/canvas?id=" + encodeURIComponent(decodeURIComponent(m[1])));
+        return;
+      }
+      document.documentElement.classList.add("route-workspace", "is-workspace-booting");
+      window.__workspaceBootAt = Date.now();
+    })();
+  </script>
+<script>
+    /* Early block browser page-zoom before app JS loads (Ctrl/Cmd+wheel / ± / Safari pinch). */
+    (function () {
+      function blockZoomKey(e) {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        var k = e.key;
+        var c = e.code;
+        if (
+          k === "+" || k === "=" || k === "-" || k === "_" || k === "0" ||
+          c === "Equal" || c === "Minus" || c === "Digit0" ||
+          c === "NumpadAdd" || c === "NumpadSubtract" || c === "Numpad0"
+        ) {
+          e.preventDefault();
+        }
+      }
+      function blockZoomWheel(e) {
+        if (e.ctrlKey || e.metaKey) e.preventDefault();
+      }
+      function blockGesture(e) {
+        e.preventDefault();
+      }
+      window.addEventListener("keydown", blockZoomKey, true);
+      window.addEventListener("wheel", blockZoomWheel, { capture: true, passive: false });
+      document.addEventListener("gesturestart", blockGesture, { capture: true, passive: false });
+      document.addEventListener("gesturechange", blockGesture, { capture: true, passive: false });
+      document.addEventListener("gestureend", blockGesture, { capture: true, passive: false });
+    })();
+  </script>
+</head>
+<body>
+  <div class="app is-workspace" id="app-root">
+    <section class="workspace-home hidden" id="workspace-home" aria-label="工作区">
+      <header class="workspace-home-head">
+        <div class="workspace-home-brand">
+          <h1>
+            <span class="workspace-qingzi-badge" title="无限画布" aria-hidden="true">庆</span>
+            <span class="workspace-home-title">主页</span>
+          </h1>
+          <p>选择画板进入 · 右键可重命名、导出或删除 · 仅供学习分享，禁止商用</p>
+        </div>
+        <div class="workspace-head-right">
+          <button type="button" class="thread-badge js-open-gen-records" id="workspace-thread-badge" title="线程记录 · 点击查看并设置并发生成上限">线程 0/16</button>
+          <button type="button" class="thread-badge" id="btn-workspace-import-data" title="导入画布分享压缩包">导入</button>
+          <button type="button" class="thread-badge" id="btn-workspace-export-data" title="导出画布分享压缩包">导出</button>
+          <div class="workspace-user-wrap" id="workspace-user-wrap">
+            <button type="button" class="user-avatar-btn" id="btn-workspace-user" title="设置" aria-expanded="false" aria-haspopup="menu">
+              <span class="user-avatar-letter" id="workspace-user-avatar">—</span>
+              <img class="user-avatar-img hidden" id="workspace-user-avatar-img" alt="" />
+            </button>
+          </div>
+        </div>
+      </header>
+      <p class="workspace-recovery-hint" id="workspace-recovery-hint" hidden></p>
+      <div class="workspace-section">
+        <div class="workspace-section-head">
+          <h2>无限画布</h2>
+          <p>节点连线 · 自由布局</p>
+        </div>
+        <div class="workspace-board-grid" id="workspace-board-grid"></div>
+      </div>
+      <div class="ctx-menu hidden" id="ctx-menu-workspace-board" role="menu">
+        <button type="button" class="ctx-item" data-action="rename" role="menuitem"><span class="ctx-item-main"><span>重命名</span></span></button>
+        <button type="button" class="ctx-item" data-action="share" role="menuitem"><span class="ctx-item-main"><span>导出画板</span></span></button>
+        <button type="button" class="ctx-item danger" data-action="delete" role="menuitem"><span class="ctx-item-main"><span>删除</span></span></button>
+      </div>
+      <div id="app-version-badge" class="app-version-badge hidden" aria-label="版本号"></div>
+    </section>
+
+<div class="workspace-user-pop overlay-popover hidden" id="workspace-user-pop" role="menu">
+      <button type="button" class="workspace-user-menu-item js-open-gen-records" id="btn-workspace-gen-records" role="menuitem">线程记录</button>
+      <button type="button" class="workspace-user-menu-item" id="btn-workspace-prefix-manager" role="menuitem">前缀管理</button>
+      <button type="button" class="workspace-user-menu-item" id="btn-workspace-myapi" role="menuitem">MyApi 配置</button>
+      <button type="button" class="workspace-user-menu-item workspace-user-menu-toggle is-on" id="btn-workspace-conn-flow" role="menuitemcheckbox" aria-checked="true" title="生成中时，输入连线显示传输动画">
+        <span class="workspace-menu-toggle-label">连线传输动画</span>
+        <span class="workspace-menu-switch" aria-hidden="true"><span class="workspace-menu-switch-knob"></span></span>
+        <span class="workspace-menu-switch-state">开</span>
+      </button>
+      <div class="workspace-theme-block" aria-label="界面主题">
+        <div class="workspace-theme-label">界面主题</div>
+        <div class="workspace-theme-swatches" id="workspace-theme-swatches" role="radiogroup">
+          <button type="button" class="theme-swatch is-active" data-app-theme="default" title="默认" aria-label="默认主题" aria-checked="true" role="radio"></button>
+          <button type="button" class="theme-swatch" data-app-theme="black" title="黑色" aria-label="黑色主题" aria-checked="false" role="radio"></button>
+          <button type="button" class="theme-swatch" data-app-theme="white" title="白色" aria-label="白色主题" aria-checked="false" role="radio"></button>
+          <button type="button" class="theme-swatch" data-app-theme="pink" title="粉色" aria-label="粉色主题" aria-checked="false" role="radio"></button>
+          <button type="button" class="theme-swatch" data-app-theme="custom" title="自定义" aria-label="自定义主题" aria-checked="false" role="radio"></button>
+        </div>
+      </div>
+    </div>
+
+        <div class="canvas-toast hidden" id="canvas-toast" role="status" aria-live="polite">
+      <span class="canvas-toast-icon" id="canvas-toast-icon" aria-hidden="true"></span>
+      <span class="canvas-toast-msg" id="canvas-toast-msg"></span>
+      <span class="canvas-toast-chip hidden" id="canvas-toast-chip"></span>
+      <button type="button" class="canvas-toast-close hidden" id="canvas-toast-close" title="关闭" aria-label="关闭">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <span class="canvas-toast-bar" id="canvas-toast-bar" aria-hidden="true"></span>
+    </div>
+  </div>
+
+<dialog id="modal-settings" class="settings-dialog">
+    <div class="settings-window">
+      <div class="settings-window-head">
+        <div>
+          <h3>设置</h3>
+          <p class="settings-window-sub">MyApi · 并发</p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-close-settings" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+
+      <div class="settings-window-body">
+        <section class="settings-section">
+          <div class="settings-section-title">并发生成</div>
+          <div class="thread-settings">
+            <div class="thread-settings-row">
+              <div class="thread-settings-copy">
+                <span class="thread-settings-title">每使用人并发</span>
+                <span class="thread-settings-hint" id="thread-recommend-hint">单个使用人最多同时占用几个 MyApi 并发</span>
+              </div>
+              <div class="thread-stepper">
+                <button type="button" class="icon-btn" id="btn-thread-minus" title="减少"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+                <span id="thread-value">2</span>
+                <button type="button" class="icon-btn" id="btn-thread-plus" title="增加">+</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-thread-recommend">使用推荐线程数</button>
+          </div>
+        </section>
+
+        <section class="settings-section settings-myapi-wrap">
+          <div class="settings-section-head">
+            <div class="settings-section-title">MyApi 自定义渠道</div>
+          </div>
+          <p class="settings-section-hint">自定义 API 中转 · 视频走创建 + 轮询</p>
+
+          <div class="myapi-panel">
+            <div class="myapi-panel-head">
+              <div class="myapi-seg" role="tablist">
+                <button type="button" class="myapi-tab active" data-myapi-kind="image">图片</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="video">视频</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="text">文本</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="voice">语音</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="vision">视觉</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="agent">智能体</button>
+                <button type="button" class="myapi-tab" data-myapi-kind="volcengine" id="myapi-tab-volcengine">火山引擎</button>
+              </div>
+            </div>
+
+            <div class="myapi-list" id="myapi-model-list"></div>
+            <div class="volcengine-panel hidden" id="volcengine-panel">
+              <div class="volcengine-key-row">
+                <label class="volcengine-key-field">
+                  <span class="volcengine-key-label-row">
+                    <span class="bendi-label">方舟 API Key</span>
+                    <span class="volcengine-key-status" id="volcengine-key-status" hidden></span>
+                  </span>
+                  <input type="password" id="volcengine-api-key" class="browser-path-input" placeholder="图/视/文 · ark 控制台 Key（留空保留）" spellcheck="false" autocomplete="new-password" />
+                </label>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-volcengine-save">保存</button>
+              </div>
+              <div class="volcengine-key-row" style="margin-top:8px">
+                <label class="volcengine-key-field">
+                  <span class="volcengine-key-label-row">
+                    <span class="bendi-label">语音 Key（openspeech）</span>
+                    <span class="volcengine-key-status" id="volcengine-speech-key-status" hidden></span>
+                  </span>
+                  <input type="password" id="volcengine-speech-api-key" class="browser-path-input" placeholder="音频生成专用 · 语音控制台 Key（可与方舟不同，留空保留）" spellcheck="false" autocomplete="new-password" />
+                </label>
+              </div>
+              <p class="settings-section-hint" style="margin:10px 0 8px">模型已内置。「文本」开关同时给文本节点与<strong>音色描述</strong>（只出文字）；「语音」开关给<strong>音频生成</strong>（音色生成 / 音乐 / 录音）。「设为默认」后新建该类型节点优先走火山。</p>
+              <div class="volcengine-kind-list" id="volcengine-kind-list"></div>
+            </div>
+
+            <div class="myapi-panel-foot" id="myapi-panel-foot">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-myapi-add">添加模型</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-label="开源免责声明">
+          <div class="settings-section-title">开源免责声明</div>
+          <div class="open-source-disclaimer">
+            <p>下载、运行或再分发即表示同意。本项目只公开源码，供个人学习、研究和非商业分享，不是允许商用的许可证。</p>
+            <p>可以在自己的电脑上运行和修改，也可以把源码分享给他人，但必须附上本声明，且不得收费。禁止出售、收费部署、会员收费、广告变现，以及放进营利产品。</p>
+            <p>软件按现状提供。作者不保证稳定、安全、不丢数据，也不保证生成成功或某个模型可用。</p>
+            <p>作者不对画板丢失、服务中断、接口费用、密钥泄露，以及生成内容引起的投诉或索赔负责。</p>
+            <p>模型和密钥由使用者自己填写、保管。生成内容、上传素材和版权合规由使用者负责。本项目与模型厂商、中转站没有隶属关系。</p>
+            <p>Python 依赖需自行安装。视频超分引擎另行下载，并遵守其各自许可证。</p>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="modal-myapi-model" class="myapi-edit-dialog">
+    <form class="myapi-edit-card" id="form-myapi-model">
+      <div class="myapi-edit-head">
+        <div>
+          <h3 class="myapi-form-title" id="myapi-form-title">添加模型</h3>
+          <p class="myapi-edit-sub" id="myapi-form-kind-label">图片模型</p>
+        </div>
+        <button type="button" class="myapi-edit-close" id="btn-myapi-close" title="关闭" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="myapi-edit-body">
+        <input type="hidden" id="myapi-edit-id" value="" />
+        <input type="hidden" id="myapi-clone-from" value="" />
+        <div class="myapi-form-grid">
+          <label class="myapi-field">
+            <span>显示名称</span>
+            <input type="text" id="myapi-name" placeholder="例如 my-model" maxlength="80" required autocomplete="off" spellcheck="false" data-lpignore="true" />
+          </label>
+          <label class="myapi-field">
+            <span>模型 ID</span>
+            <input type="text" id="myapi-model-id" placeholder="同显示名称" maxlength="120" autocomplete="off" spellcheck="false" data-lpignore="true" />
+          </label>
+          <label class="myapi-field myapi-field-wide">
+            <span>Base URL</span>
+            <input type="text" id="myapi-base-url" placeholder="https://api.example.com/v1" required spellcheck="false" autocomplete="off" data-lpignore="true" />
+          </label>
+          <div class="myapi-field myapi-field-wide myapi-style-only hidden" id="myapi-api-style-wrap">
+            <div class="myapi-field-label-row">
+              <span>接口风格</span>
+              <button type="button" class="myapi-style-detail-btn" id="btn-myapi-style-detail" aria-expanded="false" aria-controls="myapi-api-style-detail">详情</button>
+            </div>
+            <select id="myapi-api-style" class="admin-select">
+              <option value="generic">默认</option>
+            </select>
+            <p class="myapi-field-hint" id="myapi-api-style-hint"></p>
+            <div class="myapi-style-detail-panel hidden" id="myapi-api-style-detail" hidden></div>
+          </div>
+          <label class="myapi-field myapi-field-wide">
+            <span>API Key</span>
+            <input type="text" id="myapi-api-key" class="api-key-input" name="myapi-api-key-token" placeholder="sk-…" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" />
+          </label>
+                    <div class="myapi-voice-panel myapi-voice-only hidden" id="myapi-voice-fields">
+            <div class="myapi-form-subtitle">语音参数（火山 / openspeech）</div>
+            <p class="myapi-field-hint">接口风格请选「火山引擎」。Base URL 默认 openspeech；图/视频/文本请用方舟 <code>https://ark.cn-beijing.volces.com</code>。</p>
+            <label class="myapi-field">
+              <span>音色 / Speaker</span>
+              <input type="text" id="myapi-voice-speaker" placeholder="可选，如 zh_female_… / 复刻音色 ID" maxlength="120" autocomplete="off" spellcheck="false" />
+            </label>
+            <label class="myapi-field">
+              <span>App ID</span>
+              <input type="text" id="myapi-voice-app-id" placeholder="可选，X-Api-App-Id" maxlength="80" autocomplete="off" spellcheck="false" />
+            </label>
+            <label class="myapi-field">
+              <span>输出格式</span>
+              <select id="myapi-voice-format" class="admin-select">
+                <option value="mp3">mp3</option>
+                <option value="wav">wav</option>
+                <option value="ogg_opus">ogg_opus</option>
+                <option value="pcm">pcm</option>
+              </select>
+            </label>
+          </div>
+<div class="myapi-agent-panel myapi-agent-only hidden" id="myapi-agent-fields">
+            <div class="myapi-form-subtitle">智能体能力</div>
+            <p class="myapi-field-hint">对话走通用 Chat Completions，无需选接口风格；语音分析用本地 Whisper，不必在此配置。</p>
+            <div class="agent-context-settings" id="agent-context-settings">
+              <div class="myapi-form-subtitle">上下文与记忆</div>
+              <p class="myapi-field-hint">仅影响发送给智能体的会话整理，不会删除画布内容或聊天记录。</p>
+              <div class="myapi-inline-row agent-context-row">
+                <label class="myapi-inline-field agent-context-field"><span>上下文详细度</span>
+                  <select id="agent-context-detail" class="admin-select">
+                    <option value="compact">紧凑：较少历史，响应更快</option>
+                    <option value="balanced">平衡</option>
+                    <option value="full">完整：保留更多最近对话</option>
+                  </select>
+                </label>
+                <label class="myapi-inline-field agent-context-field"><span>最近对话条数</span>
+                  <input type="number" class="myapi-num-input" id="agent-recent-messages" min="2" max="40" step="1" />
+                </label>
+              </div>
+              <div class="myapi-inline-row agent-context-row">
+                <label class="myapi-inline-field agent-context-field"><span>记忆摘要上限</span>
+                  <select id="agent-memory-size" class="admin-select">
+                    <option value="800">短（约 800 字符）</option>
+                    <option value="2400">中（约 2400 字符）</option>
+                    <option value="6000">长（约 6000 字符）</option>
+                  </select>
+                </label>
+                <label class="myapi-inline-field agent-context-field"><span>回复保留长度</span>
+                  <select id="agent-assistant-size" class="admin-select">
+                    <option value="600">精简</option>
+                    <option value="1200">标准</option>
+                    <option value="2400">详细</option>
+                  </select>
+                </label>
+              </div>
+              <div class="myapi-inline-row agent-context-row">
+                <label class="myapi-inline-field agent-context-field"><span>聊天窗口每页</span>
+                  <select id="agent-ui-page-size" class="admin-select">
+                    <option value="6">6 条</option><option value="10">10 条</option><option value="20">20 条</option>
+                  </select>
+                </label>
+                <label class="myapi-inline-field agent-context-field"><span>上滑加载</span>
+                  <select id="agent-ui-load-more" class="admin-select">
+                    <option value="6">6 条</option><option value="10">10 条</option><option value="20">20 条</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <label class="myapi-check myapi-check-block" id="myapi-multimodal-wrap">
+              <input type="checkbox" id="myapi-multimodal" />
+              <span class="myapi-check-text">
+                <strong>支持多模态理解</strong>
+                <em>主模型可直接看图，勾选后不必另配视觉模型</em>
+              </span>
+            </label>
+            <div class="myapi-agent-vision" id="myapi-vision-pick-wrap">
+              <span class="myapi-field-caption">视觉模型（可选）</span>
+              <div class="myapi-select-host">
+                <select id="myapi-vision-model-id" class="admin-select">
+                  <option value="">不使用 / 未添加视觉模型</option>
+                </select>
+              </div>
+              <p class="myapi-field-hint">未勾选多模态时，可指定一个已添加的视觉模型做看图辅助。</p>
+            </div>
+          </div>
+
+        </div>
+        <div class="myapi-advanced" id="myapi-advanced-fields">
+          <div class="myapi-form-subtitle">参考素材上限</div>
+          <div class="myapi-inline-row">
+            <label class="myapi-inline-field">
+              <span>图片</span>
+              <input type="number" class="myapi-num-input" id="myapi-max-images" min="0" max="50" value="9" />
+            </label>
+            <label class="myapi-inline-field">
+              <span>视频</span>
+              <input type="number" class="myapi-num-input" id="myapi-max-videos" min="0" max="50" value="3" />
+            </label>
+            <label class="myapi-inline-field">
+              <span>音频</span>
+              <input type="number" class="myapi-num-input" id="myapi-max-audios" min="0" max="50" value="3" />
+            </label>
+          </div>
+          <div class="myapi-video-only hidden" id="myapi-video-fields">
+            <div class="myapi-form-subtitle">视频时长（秒）</div>
+            <div class="myapi-inline-row">
+              <label class="myapi-inline-field">
+                <span>最短</span>
+                <input type="number" class="myapi-num-input" id="myapi-duration-min" min="1" max="600" value="4" />
+              </label>
+              <label class="myapi-inline-field">
+                <span>最长</span>
+                <input type="number" class="myapi-num-input" id="myapi-duration-max" min="1" max="600" value="10" />
+              </label>
+              <label class="myapi-check myapi-check-inline">
+                <input type="checkbox" id="myapi-send-duration" checked />
+                <span id="myapi-send-duration-label">API 携带 duration</span>
+              </label>
+            </div>
+            <div class="myapi-form-subtitle">支持比例</div>
+            <div class="myapi-check-grid" id="myapi-ratios-group"></div>
+            <div class="myapi-form-subtitle">支持分辨率</div>
+            <p class="muted" style="margin:0 0 6px;font-size:12px">「自由」= 不传分辨率参数，由上游默认生成</p>
+            <div class="myapi-check-grid" id="myapi-resolutions-group"></div>
+          </div>
+        </div>
+      </div>
+      <div class="myapi-form-actions myapi-edit-actions">
+        <div class="myapi-clip-actions">
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-myapi-copy-config" title="复制全部配置（不含 API Key）">一键复制</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-myapi-paste-config" title="从剪贴板粘贴配置">粘贴配置</button>
+        </div>
+        <span class="myapi-test-status" id="myapi-test-status" aria-live="polite"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-myapi-test">测试链接</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-myapi-cancel">取消</button>
+        <button type="submit" class="btn btn-primary btn-sm" id="btn-myapi-save">添加</button>
+      </div>
+    </form>
+  </dialog>
+<dialog id="modal-prefix-manager" class="settings-dialog prefix-manager-dialog">
+    <div class="settings-window">
+      <div class="settings-window-head">
+        <div>
+          <h3>前缀管理</h3>
+          <p class="settings-window-sub">生成时自动在提示词前添加前缀，格式：前缀 + 三个换行 + 内容</p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-close-prefix-manager" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="settings-window-body">
+        <section class="settings-section">
+          <div class="settings-section-title">默认前缀</div>
+          <div class="prefix-default-row">
+            <div class="prefix-default-field">
+              <span class="prefix-default-label">图片默认</span>
+              <div id="prefix-default-image" class="prefix-default-picker-host"></div>
+            </div>
+            <div class="prefix-default-field">
+              <span class="prefix-default-label">视频默认</span>
+              <div id="prefix-default-video" class="prefix-default-picker-host"></div>
+            </div>
+          </div>
+        </section>
+        <section class="settings-section">
+          <div class="prefix-manager-section-head">
+            <div class="settings-section-title">图片前缀</div>
+            <button type="button" class="btn btn-ghost prefix-manager-add-btn" id="btn-prefix-manager-add-image">+ 添加</button>
+          </div>
+          <div id="prefix-manager-list-image" class="prefix-manager-list" data-prefix-kind="image"></div>
+        </section>
+        <section class="settings-section">
+          <div class="prefix-manager-section-head">
+            <div class="settings-section-title">视频前缀</div>
+            <button type="button" class="btn btn-ghost prefix-manager-add-btn" id="btn-prefix-manager-add-video">+ 添加</button>
+          </div>
+          <div id="prefix-manager-list-video" class="prefix-manager-list" data-prefix-kind="video"></div>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="modal-prefix-edit" class="modal-dialog prefix-edit-dialog">
+    <form id="form-prefix-edit" class="prefix-edit-panel" autocomplete="off">
+      <h3 id="prefix-edit-title">添加前缀</h3>
+      <label class="field">
+        <span>名称</span>
+        <input type="text" id="input-prefix-edit-name" placeholder="如：人物" maxlength="32" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="field">
+        <span>前缀内容</span>
+        <textarea id="input-prefix-edit-content" class="prefix-edit-content" placeholder="生成时会加在提示词前面，格式：前缀 + 三个换行 + 内容" rows="22" spellcheck="false"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btn-prefix-edit-cancel">取消</button>
+        <button type="submit" class="btn btn-primary" id="btn-prefix-edit-save">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+<dialog id="modal-prefix-view" class="modal-dialog prefix-view-dialog">
+    <div class="prefix-view-panel">
+      <div class="prefix-view-head">
+        <h3 id="prefix-view-title">查看前缀</h3>
+        <button type="button" class="icon-btn" id="btn-prefix-view-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <pre id="prefix-view-content" class="prefix-view-content"></pre>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="btn-prefix-view-done">关闭</button>
+      </div>
+    </div>
+  </dialog>
+<dialog id="app-dialog" class="app-dialog" aria-labelledby="app-dialog-title">
+    <div class="app-dialog-card">
+      <h3 id="app-dialog-title" class="app-dialog-title">提示</h3>
+      <p id="app-dialog-message" class="app-dialog-message"></p>
+      <input
+        type="text"
+        id="app-dialog-input"
+        class="app-dialog-input hidden"
+        maxlength="64"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <div class="app-dialog-actions">
+        <button type="button" class="btn btn-ghost" id="app-dialog-cancel" data-app-dialog="cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="app-dialog-ok" data-app-dialog="ok">确定</button>
+      </div>
+    </div>
+  </dialog>
+<div id="canvas-enter-loader" class="canvas-enter-loader hidden" aria-live="polite" aria-busy="false">
+    <div class="canvas-enter-loader-dots" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+
+<dialog id="modal-delete-board" class="board-delete-dialog">
+    <div class="board-delete-card">
+      <button type="button" class="board-delete-close" id="btn-close-delete-board" title="关闭" aria-label="关闭">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="board-delete-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7h12Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 11v5M14 11v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3 class="board-delete-title">删除画布</h3>
+      <p class="board-delete-sub">此操作无法撤销</p>
+      <p id="delete-board-message" class="board-delete-message">确定要删除该画布吗？画板内所有素材将一并删除。</p>
+      <div class="board-delete-actions">
+        <button type="button" class="btn btn-ghost" id="btn-cancel-delete-board">取消</button>
+        <button type="button" class="btn board-delete-btn-danger" id="btn-confirm-delete-board">删除画布</button>
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="modal-rename-board" class="modal-dialog">
+    <form method="dialog" id="form-rename-board" autocomplete="off">
+      <h3>重命名画板</h3>
+      <label class="field">
+        <span>画板名称</span>
+        <input
+          type="text"
+          id="input-rename-board"
+          name="canvas-board-rename"
+          placeholder="画板 1"
+          maxlength="32"
+          required
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-form-type="other"
+        />
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btn-cancel-rename-board">取消</button>
+        <button type="submit" class="btn btn-primary">确定</button>
+      </div>
+    </form>
+  </dialog>
+
+<dialog id="modal-gen-records" class="settings-dialog gen-records-dialog">
+    <div class="settings-window gen-records-window">
+      <div class="settings-window-head">
+        <div>
+          <h3>线程记录</h3>
+          <p class="settings-window-sub">并发生成 · 超时重试轮询 · 按工作编号追踪</p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-gen-records-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="settings-window-body">
+        <div class="gen-records-thread-bar" aria-label="线程设置">
+          <div class="gen-records-thread-row">
+            <span class="gen-records-thread-title">并发生成上限</span>
+            <div class="thread-stepper">
+              <button type="button" class="icon-btn" id="btn-thread-badge-minus" title="减少" aria-label="减少线程">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <span id="thread-badge-value">16</span>
+              <button type="button" class="icon-btn" id="btn-thread-badge-plus" title="增加" aria-label="增加线程">+</button>
+            </div>
+          </div>
+          <span class="gen-records-thread-hint">最多同时占用几个生成线程（1–64）</span>
+          <div class="gen-records-api-row">
+            <span class="gen-records-thread-title">上游等待</span>
+            <div class="gen-records-api-bar" aria-label="API 超时与轮询">
+              <label class="gen-records-api-field" title="上游任务最长等待时间（小时）">
+                <span>超时</span>
+                <input type="number" id="thread-api-timeout" min="1" max="24" step="1" value="4" />
+                <span class="gen-records-api-unit">h</span>
+              </label>
+              <label class="gen-records-api-field" title="API 无响应 / 网络错误时最多重试次数">
+                <span>重试</span>
+                <input type="number" id="thread-api-retries" min="0" max="30" step="1" value="10" />
+                <span class="gen-records-api-unit">次</span>
+              </label>
+              <label class="gen-records-api-field" title="任务状态轮询间隔（秒）">
+                <span>轮询</span>
+                <input type="number" id="thread-api-poll" min="1" max="60" step="1" value="10" />
+                <span class="gen-records-api-unit">s</span>
+              </label>
+            </div>
+          </div>
+          <span class="gen-records-thread-hint">超时默认 4 小时；重试默认 10 次；轮询默认 10 秒</span>
+        </div>
+        <div class="gen-records-toolbar">
+          <label class="gen-records-search" for="gen-records-search">
+            <span class="gen-records-search-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.2" stroke="currentColor" stroke-width="1.4"/><path d="M10.2 10.2L13.4 13.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+            <input type="search" id="gen-records-search" placeholder="搜索编号或提示词" autocomplete="off" />
+          </label>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-gen-records-refresh">刷新</button>
+        </div>
+        <div class="gen-records-clear-bar" aria-label="清理记录">
+          <button type="button" class="btn-chip gen-records-clear-btn" data-purge="failed">删除失败</button>
+          <button type="button" class="btn-chip gen-records-clear-btn is-danger" data-purge="all" title="清空已结束记录，生成中和排队中会保留">清空全部</button>
+          <button type="button" class="btn-chip gen-records-clear-btn" data-purge-keep="20">保留最近 20</button>
+          <button type="button" class="btn-chip gen-records-clear-btn" data-purge-keep="50">保留最近 50</button>
+          <button type="button" class="btn-chip gen-records-clear-btn" data-purge-keep="100">保留最近 100</button>
+        </div>
+        <div class="admin-kind-tabs gen-records-status-tabs" id="gen-records-status-tabs">
+          <button type="button" class="btn-chip is-active" data-gen-status="">全部</button>
+          <button type="button" class="btn-chip" data-gen-status="generating">生成中</button>
+          <button type="button" class="btn-chip" data-gen-status="completed">成功</button>
+          <button type="button" class="btn-chip" data-gen-status="failed">失败</button>
+        </div>
+        <p class="card-desc gen-records-summary" id="gen-records-summary">共 0 条</p>
+        <div class="table-wrap gen-records-table-wrap">
+          <table class="gen-records-table">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>编号</th>
+                <th>模型</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>耗时</th>
+                <th>摘要</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="gen-records-tbody"></tbody>
+          </table>
+        </div>
+        <div class="gen-records-pager" id="gen-records-pager">
+          <button type="button" class="btn btn-ghost btn-sm" id="gen-records-prev" disabled>上一页</button>
+          <span class="gen-records-page-info" id="gen-records-page-info">第 1 / 1 页</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="gen-records-next" disabled>下一页</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="modal-gen-record-detail" class="modal-dialog">
+    <div class="settings-window" style="max-width:720px;width:min(720px,92vw)">
+      <div class="settings-window-head">
+        <div>
+          <h3 id="gen-record-detail-title">工作编号</h3>
+          <p class="settings-window-sub" id="gen-record-detail-meta"></p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-gen-record-detail-close" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <pre id="gen-record-detail-body" style="white-space:pre-wrap;word-break:break-word;max-height:min(60vh,480px);overflow:auto;margin:0;padding:12px 16px;font-size:12px;opacity:.9"></pre>
+      <div class="settings-window-foot" style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:10px 16px 14px">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-gen-record-view-request">查看请求</button>
+        <button type="button" class="btn primary btn-sm" id="btn-gen-record-detail-close-foot">关闭</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/static/js/app-page.js?v=b205"></script>
+  <script src="/static/js/autofill-guard.js?v=b205"></script>
+  <script src="/static/js/overlay-anim.js?v=b205"></script>
+  <script src="/static/js/app-dialog.js?v=b205"></script>
+  <script src="/static/js/server-watch.js?v=b205"></script>
+  <script src="/static/js/canvas-stale-guard.js?v=b205"></script>
+  <script src="/static/js/theme.js?v=b205"></script>
+  <script src="/static/js/auth.js?v=b211"></script>
+  <script src="/static/js/prefix-manager.js?v=b205"></script>
+  <script src="/static/js/ui-select.js?v=b205"></script>
+  <script src="/static/js/document-save.js?v=b205"></script>
+  <script src="/static/js/canvas.js?v=b212"></script>
+  <script src="/static/js/workspace-transfer.js?v=b206"></script>
+  <script src="/static/js/gen-records.js?v=b211"></script>
+  <script src="/static/js/app.js?v=b214"></script>
+</body>
+</html>
+

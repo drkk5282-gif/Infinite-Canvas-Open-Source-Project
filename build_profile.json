@@ -1,0 +1,6 @@
+{
+  "disable_browser_channels": true,
+  "disable_doubao": true,
+  "product_label": "无限画布",
+  "skip_playwright_pack": true
+}
